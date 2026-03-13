@@ -50,6 +50,6 @@ export function explorerTxUrl(hash: string): string {
   return `https://explorer.intuition.systems/tx/${hash}`;
 }
 
-export function intuitionProfileUrl(address: string): string {
-  return `https://portal.intuition.systems/app/profile/${address}`;
+export function intuitionProfileUrl(atomId: string): string {
+  return `https://portal.intuition.systems/explore/atom/${atomId}?tab=claims`;
 }
