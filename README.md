@@ -19,11 +19,12 @@ A conference companion app for [EthCC\[9\]](https://ethcc.io) that lets attendee
 
 | Layer | Tech |
 |---|---|
-| Frontend | React 19, TypeScript, Vite |
+| Frontend | React 19, TypeScript 5.8, Vite 6 |
 | Routing | react-router-dom v7 |
 | On-chain | ethers.js v6, Intuition MultiVault (Chain 1155) |
 | Data | Static JSON dataset (83 sessions, 278 speakers, 17 tracks, 8 stages) |
 | Style | Dark "Riviera Crypto Festival" theme, glass-morphism, Sora + DM Sans |
+| Deployment | GitHub Pages via GitHub Actions |
 
 ---
 
@@ -49,31 +50,103 @@ pnpm preview    # serve the build locally
 ## Project structure
 
 ```
-ethccagenda/
-├── bdd/                          # Static data layer
-│   ├── sessions.json             # 83 sessions
-│   ├── speakers.json             # 278 speakers
-│   ├── stages.json               # 8 stages
-│   ├── tracks.json               # 17 tracks
-│   ├── daily_schedule.json       # Sessions grouped by day
-│   ├── intuition_graph.json      # On-chain atom & triple IDs
-│   └── schema.graphql            # Canonical data model
+Treepl/
+├── bdd/                              # Static data layer
+│   ├── sessions.json                 # 83 sessions
+│   ├── speakers.json                 # 278 speakers
+│   ├── stages.json                   # 8 stages
+│   ├── tracks.json                   # 17 tracks
+│   ├── daily_schedule.json           # Sessions grouped by day
+│   ├── intuition_graph.json          # On-chain atom & triple IDs
+│   └── schema.graphql                # Canonical data model
 │
-├── web/                          # React SPA
+├── web/                              # React SPA
 │   └── src/
-│       ├── App.tsx               # Main layout, day tabs, filters, session grid
-│       ├── App.css               # Full theme & animations
-│       ├── SessionCard.tsx       # Glass card with type-colored accent
-│       ├── FilterBar.tsx         # Horizontal pill-chip filters
-│       ├── SpeakerPage.tsx       # Speaker profile & talk timeline
-│       ├── ProfilePage.tsx       # Cart recap, tx preview, MetaMask flow
-│       ├── intuition.ts          # Intuition SDK (wallet, atoms, triples)
-│       ├── data.ts               # JSON imports & derived lists
-│       └── types.ts              # TypeScript interfaces
+│       ├── main.tsx                  # Router + ErrorBoundary
+│       │
+│       ├── config/
+│       │   └── constants.ts          # Storage keys, colors, chain config, URLs
+│       │
+│       ├── types/
+│       │   └── index.ts              # Session, Speaker, Track interfaces
+│       │
+│       ├── data/
+│       │   └── index.ts              # JSON imports + derived lists
+│       │
+│       ├── utils/
+│       │   ├── date.utils.ts         # Date formatting helpers
+│       │   └── session.utils.ts      # Grouping, set toggle helpers
+│       │
+│       ├── services/
+│       │   ├── StorageService.ts     # localStorage abstraction (OOP)
+│       │   └── intuition.ts          # Intuition SDK (wallet, atoms, triples)
+│       │
+│       ├── hooks/
+│       │   ├── useCart.ts            # Cart state + persistence
+│       │   ├── useSessionFilter.ts   # Filter state + derived data
+│       │   ├── useInterestCounts.ts  # GraphQL interest polling
+│       │   └── useWallet.ts          # Wallet connection + tx flow
+│       │
+│       ├── components/
+│       │   ├── ui/
+│       │   │   └── ErrorBoundary.tsx
+│       │   ├── session/
+│       │   │   └── SessionCard.tsx   # Glass card with type-colored accent
+│       │   ├── toolbar/
+│       │   │   └── Toolbar.tsx       # Search + day/type/topic filter pills
+│       │   └── profile/
+│       │       ├── RecapStep.tsx     # Interests + sessions recap
+│       │       ├── WalletStep.tsx    # QR code + wallet connect
+│       │       ├── SuccessStep.tsx   # On-chain success view
+│       │       └── TransactionSummary.tsx
+│       │
+│       ├── pages/
+│       │   ├── AgendaPage.tsx        # Main layout, session grid
+│       │   ├── SpeakerPage.tsx       # Speaker profile & talk timeline
+│       │   └── ProfilePage.tsx       # Cart recap, tx preview, MetaMask flow
+│       │
+│       └── styles/
+│           ├── index.css             # Barrel import
+│           ├── globals.css           # Tokens, reset, keyframes
+│           ├── hero.css              # Hero header
+│           ├── toolbar.css           # Toolbar + pills
+│           ├── session.css           # Cards + grid
+│           ├── speaker.css           # Speaker profile
+│           ├── profile.css           # Profile + wallet + tx
+│           └── responsive.css        # Media queries
 │
-└── Triples/                      # On-chain seeding tools (browser + MetaMask)
-    ├── seed.html                 # Batch-create all atoms & triples
-    └── fix_missing.html          # Patch missing speaker triples
+└── Triples/                          # On-chain seeding tools (browser + MetaMask)
+    ├── seed.html                     # Batch-create all atoms & triples
+    ├── fix_missing.html              # Patch missing speaker triples
+    └── create_predicates.html        # Create interest/attending predicates
+```
+
+---
+
+## Architecture
+
+The app follows a **layered architecture** with clear separation of concerns:
+
+- **Config** — Centralized constants (no magic strings scattered in components)
+- **Services** — Business logic classes (`StorageService` for persistence, `intuition.ts` for Web3)
+- **Hooks** — State management encapsulated in custom hooks (`useCart`, `useWallet`, `useSessionFilter`, `useInterestCounts`)
+- **Components** — Presentational components receiving data via props
+- **Pages** — Thin orchestrators that compose hooks + components
+
+---
+
+## User flow
+
+```
+┌──────────┐   filter/search   ┌──────────────┐  select sessions  ┌──────────┐
+│  Agenda  │ ─────────────────►│ Session Grid │ ──────────────────►│  Cart    │
+│  Page    │  day/type/topic   │  (cards)     │   click card       │(localStorage)
+└──────────┘                   └──────────────┘                    └────┬─────┘
+                                                                        │ "Validate"
+     ┌───────────────┐   sign tx    ┌──────────┐   connect    ┌────────▼────┐
+     │   Success     │◄────────────│  Wallet  │◄─────────────│   Profile   │
+     │  (on-chain!)  │  MetaMask   │  QR/$TRUST│             │   Recap     │
+     └───────────────┘             └──────────┘              └─────────────┘
 ```
 
 ---
@@ -85,17 +158,17 @@ All conference data lives on-chain as **atoms** and **triples** on the Intuition
 | Concept | Count |
 |---|---|
 | Atoms (sessions, speakers, tracks, predicates) | 173 |
-| `has tag` triples (session → track) | 83 |
-| `presented at` triples (speaker → session) | 83 |
-| `speaking at` triples (speaker → session) | 73 |
+| `has tag` triples (session -> track) | 83 |
+| `presented at` triples (speaker -> session) | 83 |
+| `speaking at` triples (speaker -> session) | 73 |
 
 **User profile flow:**
 
 ```
-[Your wallet] ──are interested by──▶ [DeFi]
-[Your wallet] ──are interested by──▶ [AI & Crypto]
-[Your wallet] ──attending──▶ [Session: "ZK Proofs in Practice"]
-[Your wallet] ──attending──▶ [Session: "MEV Panel"]
+[Your wallet] ──are interested by──► [DeFi]
+[Your wallet] ──are interested by──► [AI & Crypto]
+[Your wallet] ──attending──► [Session: "ZK Proofs in Practice"]
+[Your wallet] ──attending──► [Session: "MEV Panel"]
 ```
 
 All triples are created in a single batch transaction on Chain 1155 ($TRUST).
