@@ -6,7 +6,7 @@ import {
   ensureUserAtom,
   buildProfileTriples,
   createProfileTriples,
-} from "../intuition";
+} from "../services/intuition";
 import { StorageService } from "../services/StorageService";
 
 export type WalletStep = "recap" | "wallet" | "connected" | "signing" | "created";

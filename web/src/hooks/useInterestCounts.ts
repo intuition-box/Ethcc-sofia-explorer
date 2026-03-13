@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { GQL_URL } from "../config/constants";
-import { TRACK_ATOM_IDS, PREDICATES } from "../intuition";
+import { TRACK_ATOM_IDS, PREDICATES } from "../services/intuition";
 
 export function useInterestCounts(topics: Set<string>): Record<string, number> {
   const [interestCounts, setInterestCounts] = useState<Record<string, number>>({});

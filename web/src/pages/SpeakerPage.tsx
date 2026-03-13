@@ -1,7 +1,7 @@
 import { useParams, Link } from "react-router-dom";
-import { speakersBySlug } from "./data";
-import { getTypeCssColor } from "./config/constants";
-import { formatDateLong } from "./utils/date.utils";
+import { speakersBySlug } from "../data";
+import { getTypeCssColor } from "../config/constants";
+import { formatDateLong } from "../utils/date.utils";
 
 export function SpeakerPage() {
   const { slug } = useParams<{ slug: string }>();

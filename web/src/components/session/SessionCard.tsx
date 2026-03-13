@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import type { Session } from "./types";
-import { getTypeCssColor } from "./config/constants";
+import type { Session } from "../../types";
+import { getTypeCssColor } from "../../config/constants";
 
 export function SessionCard({
   session,
