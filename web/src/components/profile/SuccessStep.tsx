@@ -1,11 +1,17 @@
+import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { explorerTxUrl, intuitionProfileUrl } from "../../config/constants";
+import { useVibeMatches } from "../../hooks/useVibeMatches";
+import { sessions } from "../../data";
 
 interface SuccessStepProps {
   topicCount: number;
   sessionCount: number;
   txHash: string;
   walletAddress: string;
+  userAtomId: string;
+  topics: Set<string>;
+  sessionIds: string[];
 }
 
 export function SuccessStep({
@@ -13,7 +19,18 @@ export function SuccessStep({
   sessionCount,
   txHash,
   walletAddress,
+  userAtomId,
+  topics,
+  sessionIds,
 }: SuccessStepProps) {
+  const { matches, loading } = useVibeMatches(topics, sessionIds, walletAddress);
+
+  const sessionTitleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sessions) map.set(s.id, s.title);
+    return map;
+  }, []);
+
   return (
     <div className="profile-created">
       <div className="profile-check">&#10003;</div>
@@ -37,9 +54,9 @@ export function SuccessStep({
         </a>
       )}
 
-      {walletAddress && (
+      {userAtomId && (
         <a
-          href={intuitionProfileUrl(walletAddress)}
+          href={intuitionProfileUrl(userAtomId)}
           target="_blank"
           rel="noopener noreferrer"
           className="tx-link"
@@ -49,16 +66,63 @@ export function SuccessStep({
         </a>
       )}
 
-      {/* Matching interests teaser */}
+      {/* Matching interests */}
       <section className="profile-section" style={{ marginTop: "2.5rem" }}>
         <h2 className="profile-section-title">People who share your vibe</h2>
         <p className="profile-match-hint">
           Other attendees interested in your topics will appear here.
           Exchange links, plan meetups, build your network.
         </p>
-        <div className="profile-match-placeholder">
-          <span>Coming soon...</span>
-        </div>
+
+        {loading && (
+          <div className="profile-match-placeholder">
+            <span>Searching for your vibe tribe...</span>
+          </div>
+        )}
+
+        {!loading && matches.length === 0 && (
+          <div className="profile-match-placeholder">
+            <span>No matches yet — you're an early adopter! Share EthCC to find your tribe.</span>
+          </div>
+        )}
+
+        {!loading && matches.length > 0 && (
+          <div className="vibe-match-list">
+            {matches.map((m) => (
+              <div key={m.subjectTermId} className="vibe-match-card">
+                <div className="vibe-match-header">
+                  <span className="vibe-match-address">
+                    {m.label.slice(0, 6)}...{m.label.slice(-4)}
+                  </span>
+                  <span className="vibe-match-score">
+                    {m.matchScore} shared{" "}
+                    {m.matchScore === 1 ? "interest" : "interests"}
+                  </span>
+                </div>
+                <div className="vibe-match-pills">
+                  {m.sharedTopics.map((t) => (
+                    <span key={t} className="vibe-match-pill vibe-pill-topic">
+                      {t}
+                    </span>
+                  ))}
+                  {m.sharedSessions.map((sid) => (
+                    <span key={sid} className="vibe-match-pill vibe-pill-session">
+                      {sessionTitleMap.get(sid) ?? sid}
+                    </span>
+                  ))}
+                </div>
+                <a
+                  href={intuitionProfileUrl(m.subjectTermId)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="vibe-match-link"
+                >
+                  View profile &rarr;
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       <div className="profile-cta">

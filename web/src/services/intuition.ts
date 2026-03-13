@@ -134,6 +134,50 @@ export async function getUserAtomId(
   return await multiVault.calculateAtomId(hexData);
 }
 
+// ─── Ensure user atom exists on-chain ─────────────────────────────
+
+/**
+ * Check if the user's wallet atom exists on-chain.
+ * If not, create it via the proxy's createAtoms function.
+ * Returns the user's atom ID.
+ */
+export async function ensureUserAtom(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  multiVault: any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  proxy: any,
+  address: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ethersLib: any
+): Promise<string> {
+  const userAtomId = await getUserAtomId(multiVault, address, ethersLib);
+  const exists = await multiVault.isTermCreated(userAtomId);
+
+  if (!exists) {
+    const atomData = ethersLib.hexlify(
+      ethersLib.toUtf8Bytes(address.toLowerCase())
+    );
+    const atomCost = await multiVault.getAtomCost();
+    // getTotalCreationCost(depositCount=1, totalDeposit=0, multiVaultCost=atomCost)
+    const totalCost = await proxy.getTotalCreationCost(
+      1n,
+      0n,
+      atomCost
+    );
+
+    const tx = await proxy.createAtoms(
+      address,
+      [atomData],
+      [0n],
+      CHAIN_CONFIG.CURVE_ID,
+      { value: totalCost }
+    );
+    await tx.wait();
+  }
+
+  return userAtomId;
+}
+
 // ─── Build profile triples ───────────────────────────────────────
 
 export function buildProfileTriples(

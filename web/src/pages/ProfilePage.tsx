@@ -21,6 +21,7 @@ export function ProfilePage() {
     handleConnect,
     handleCreate,
     addIntuitionChain,
+    userAtomId,
   } = useWallet();
 
   const interestCounts = useInterestCounts(topics);
@@ -73,6 +74,9 @@ export function ProfilePage() {
           sessionCount={selectedSessions.length}
           txHash={txHash}
           walletAddress={walletAddress}
+          userAtomId={userAtomId}
+          topics={topics}
+          sessionIds={[...cart]}
         />
       )}
     </div>

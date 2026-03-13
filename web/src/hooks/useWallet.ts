@@ -4,7 +4,7 @@ import {
   connectWallet,
   addIntuitionChain,
   approveProxy,
-  getUserAtomId,
+  ensureUserAtom,
   buildProfileTriples,
   createProfileTriples,
   estimateFees,
@@ -19,6 +19,7 @@ export function useWallet() {
   const [txStatus, setTxStatus] = useState("");
   const [txHash, setTxHash] = useState("");
   const [txError, setTxError] = useState("");
+  const [userAtomId, setUserAtomId] = useState("");
   const [walletAddress, setWalletAddress] = useState("");
   const [walletState, setWalletState] = useState<WalletConnection | null>(null);
   const [trustBalance, setTrustBalance] = useState<string | null>(null);
@@ -109,10 +110,11 @@ export function useWallet() {
 
       setTxStatus("Checking your atom on Intuition...");
       const { multiVault } = walletState;
-      const userAtomId = await getUserAtomId(multiVault, address, ethers);
+      const atomId = await ensureUserAtom(multiVault, proxy, address, ethers);
+      setUserAtomId(atomId);
 
       const triples = buildProfileTriples(
-        userAtomId,
+        atomId,
         [...topics],
         [...cart]
       );
@@ -144,6 +146,7 @@ export function useWallet() {
     txHash,
     txError,
     walletAddress,
+    userAtomId,
     trustBalance,
     feeEstimate,
     cart,
