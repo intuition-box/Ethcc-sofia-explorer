@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { GQL_URL } from "../config/constants";
 import { TRACK_ATOM_IDS, SESSION_ATOM_IDS, PREDICATES } from "../services/intuition";
 
@@ -21,12 +21,22 @@ export function useVibeMatches(
 ): { matches: VibeMatch[]; loading: boolean } {
   const [matches, setMatches] = useState<VibeMatch[]>([]);
   const [loading, setLoading] = useState(false);
+  const fetchedRef = useRef(false);
+
+  // Stabilize deps - only fetch once when wallet address is set
+  const topicsKey = [...topics].sort().join(",");
+  const sessionsKey = sessionIds.sort().join(",");
 
   useEffect(() => {
+    // Only fetch once per unique combination
+    if (fetchedRef.current) return;
+
     const trackIds = [...topics].map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
     const sessAtomIds = sessionIds.map((id) => SESSION_ATOM_IDS[id]).filter(Boolean);
 
-    if (trackIds.length === 0 && sessAtomIds.length === 0) return;
+    if ((trackIds.length === 0 && sessAtomIds.length === 0) || !walletAddress) return;
+
+    fetchedRef.current = true;
 
     setLoading(true);
 
@@ -116,7 +126,8 @@ export function useVibeMatches(
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [topics, sessionIds, walletAddress]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicsKey, sessionsKey, walletAddress]);
 
   return { matches, loading };
 }

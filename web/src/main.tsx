@@ -1,30 +1,54 @@
-import { StrictMode, useEffect } from "react";
+import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
-import AgendaPage from "./pages/AgendaPage";
-import { SpeakerPage } from "./pages/SpeakerPage";
-import { ProfilePage } from "./pages/ProfilePage";
-import VotePage from "./pages/VotePage";
+import App from "./App";
 
-function ScrollToTop() {
-  const { pathname } = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [pathname]);
-  return null;
-}
+// Pages
+import OnboardingPage from "./pages/OnboardingPage";
+import HomePage from "./pages/HomePage";
+import AgendaPage from "./pages/AgendaPage";
+import CartPage from "./pages/CartPage";
+import VotePage from "./pages/VotePage";
+import ProfilePage from "./pages/ProfilePage";
+import SessionDetailPage from "./pages/SessionDetailPage";
+import { SpeakerPage } from "./pages/SpeakerPage";
+import SendPage from "./pages/SendPage";
+import BuyTrustPage from "./pages/BuyTrustPage";
+import LeaderboardPage from "./pages/LeaderboardPage";
+import InvitePage from "./pages/InvitePage";
+import VibeProfilePage from "./pages/VibeProfilePage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
       <BrowserRouter basename="/Treepl">
-        <ScrollToTop />
         <Routes>
-          <Route path="/" element={<AgendaPage />} />
-          <Route path="/speaker/:slug" element={<SpeakerPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/vote" element={<VotePage />} />
+          <Route element={<App />}>
+            {/* Onboarding */}
+            <Route index element={<OnboardingPage />} />
+
+            {/* Main tabs */}
+            <Route path="/home" element={<HomePage />} />
+            <Route path="/agenda" element={<AgendaPage />} />
+            <Route path="/cart" element={<CartPage />} />
+            <Route path="/vote" element={<VotePage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+
+            {/* Detail pages */}
+            <Route path="/session/:id" element={<SessionDetailPage />} />
+            <Route path="/speaker/:slug" element={<SpeakerPage />} />
+
+            {/* Utility pages */}
+            <Route path="/send" element={<SendPage />} />
+            <Route path="/buy" element={<BuyTrustPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/invite" element={<InvitePage />} />
+            <Route path="/vibe/:index" element={<VibeProfilePage />} />
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

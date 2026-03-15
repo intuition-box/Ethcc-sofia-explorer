@@ -11,6 +11,7 @@
   "dependencies": {
     "@types/three": "^0.183.1",
     "ethers": "^6.16.0",
+    "postprocessing": "^6.38.3",
     "qrcode.react": "^4.2.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

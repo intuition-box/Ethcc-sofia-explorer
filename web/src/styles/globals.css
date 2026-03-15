@@ -1,25 +1,4 @@
-/* ── Design tokens ───────────────────────────────────── */
-:root {
-  --base: #00273d;
-  --base-dark: #011e2f;
-  --teal: #2acecc;
-  --orange: #ff5713;
-  --yellow: #ffc700;
-  --blue: #009bd0;
-  --lime: #fdff87;
-  --text: #e8ecf1;
-  --text-muted: #8da2b5;
-  --surface: rgba(255, 255, 255, 0.04);
-  --surface-hover: rgba(255, 255, 255, 0.07);
-  --border: rgba(255, 255, 255, 0.08);
-  --font-display: "Sora", system-ui, sans-serif;
-  --font-body: "DM Sans", system-ui, sans-serif;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-pill: 100px;
-}
-
-/* ── Reset ───────────────────────────────────────────── */
+/* ─── Reset ──────────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
@@ -28,81 +7,86 @@
   box-sizing: border-box;
 }
 
-body {
-  font-family: var(--font-body);
-  background: var(--base-dark);
-  color: var(--text);
-  line-height: 1.55;
+html {
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.app {
+body {
+  font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
+    'Segoe UI', sans-serif;
+  background: radial-gradient(circle at center, #0a0820 0%, #02000e 100%);
+  color: #f2ded6;
   min-height: 100vh;
+  overflow-x: hidden;
 }
 
-.empty-state {
-  text-align: center;
-  color: var(--text-muted);
-  margin-top: 4rem;
-  font-size: 1.1rem;
-  font-family: var(--font-display);
-}
-
-.back-link {
-  display: inline-flex;
+#root {
+  min-height: 100dvh;
+  display: flex;
   align-items: center;
-  gap: 0.4rem;
-  color: var(--teal);
+  justify-content: center;
+}
+
+@media (max-width: 499px) {
+  #root {
+    padding: 0;
+  }
+}
+
+@media (min-width: 500px) {
+  #root {
+    padding: 20px;
+  }
+}
+
+/* ─── Scrollbar ──────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/* ─── Input reset ────────────────────────────────────────────── */
+input,
+button,
+textarea,
+select {
+  font-family: inherit;
+}
+
+input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.agenda-search::placeholder {
+  color: rgba(0, 0, 0, 0.4);
+}
+
+a {
+  color: inherit;
   text-decoration: none;
-  font-family: var(--font-display);
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-bottom: 2rem;
-  transition: opacity 0.15s;
 }
 
-.back-link:hover {
-  opacity: 0.8;
+/* ─── Liquid glass shimmer on interactive elements ───── */
+button, [role="button"] {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+button:active, [role="button"]:active {
+  transform: scale(0.97);
 }
 
-/* ── Stagger animation ───────────────────────────────── */
-@keyframes cardIn {
-  from {
-    opacity: 0;
-    transform: translateY(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes popIn {
-  from {
-    transform: scale(0);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+/* ─── Animations ─────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
-@keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(1rem); }
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }

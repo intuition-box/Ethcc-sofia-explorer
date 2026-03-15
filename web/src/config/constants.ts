@@ -43,7 +43,10 @@ export const CHAIN_CONFIG = {
 export const DEFAULT_DEPOSIT_PER_TRIPLE = "100000000000000000"; // 1e17 = 0.1 TRUST
 
 // ─── API URLs ───────────────────────────────────────────────────
-export const GQL_URL = "https://mainnet.intuition.sh/v1/graphql";
+// Use Vite proxy in dev to avoid CORS, direct URL in production
+export const GQL_URL = import.meta.env.DEV
+  ? "/api/graphql"
+  : "https://mainnet.intuition.sh/v1/graphql";
 
 // ─── External URLs ──────────────────────────────────────────────
 export function explorerTxUrl(hash: string): string {

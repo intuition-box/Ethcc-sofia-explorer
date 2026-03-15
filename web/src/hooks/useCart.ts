@@ -1,24 +1,51 @@
-import { useState, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { StorageService } from "../services/StorageService";
 
+// ─── Shared cart store ──────────────────────────────────────────
+// All components share the same cart state via useSyncExternalStore
+let cartState = StorageService.loadCart();
+const listeners = new Set<() => void>();
+
+function subscribe(cb: () => void) {
+  listeners.add(cb);
+  return () => listeners.delete(cb);
+}
+
+function getSnapshot() {
+  return cartState;
+}
+
+function updateCart(next: Set<string>) {
+  cartState = next;
+  StorageService.saveCart(next);
+  listeners.forEach((cb) => cb());
+}
+
 export function useCart() {
-  const [cart, setCart] = useState<Set<string>>(() => StorageService.loadCart());
+  const cart = useSyncExternalStore(subscribe, getSnapshot);
 
   const toggleCart = useCallback((id: string) => {
-    setCart((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      StorageService.saveCart(next);
-      return next;
-    });
+    const next = new Set(cartState);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    updateCart(next);
   }, []);
 
   const clearCart = useCallback(() => {
-    const empty = new Set<string>();
-    StorageService.saveCart(empty);
-    setCart(empty);
+    updateCart(new Set<string>());
   }, []);
 
-  return { cart, toggleCart, clearCart };
+  const addToCart = useCallback((id: string) => {
+    const next = new Set(cartState);
+    next.add(id);
+    updateCart(next);
+  }, []);
+
+  const removeFromCart = useCallback((id: string) => {
+    const next = new Set(cartState);
+    next.delete(id);
+    updateCart(next);
+  }, []);
+
+  return { cart, toggleCart, clearCart, addToCart, removeFromCart };
 }

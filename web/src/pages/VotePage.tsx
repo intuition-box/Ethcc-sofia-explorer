@@ -1,871 +1,655 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { categories } from "../data/topics";
-import type { Web3Topic, Web3Category } from "../types";
-import { connectWallet } from "../services/intuition";
-import type { WalletConnection } from "../services/intuition";
-import { submitVotes } from "../services/voteService";
-import {
-  fetchTrendingTopics,
-  fetchTopicVoters,
-  fetchAllTopicEvents,
-  fetchTopicEvents,
-  eventsToChartData,
-  fetchLikeMinded,
-  type TopicVaultData,
-  type TopicPosition,
-} from "../services/trendingService";
-import {
-  fetchPortfolio,
-  redeemPosition,
-  type PortfolioSummary,
-  type UserPosition,
-} from "../services/portfolioService";
-import { explorerTxUrl } from "../config/constants";
-import SparkChart from "../components/vote/SparkChart";
-import "../styles/vote.css";
+import { useState, useMemo, useCallback, useEffect, type CSSProperties } from "react";
+import { C, R, glassSurface, FONT } from "../config/theme";
+import { categories, allTopics } from "../data/topics";
+import type { Web3Category } from "../types";
+import { useCart } from "../hooks/useCart";
+import { Spark } from "../components/ui/Spark";
+import { fetchTrendingTopics, fetchAllTopicEvents, type TopicVaultData } from "../services/trendingService";
+
+// ─── Icon name → emoji mapping ───────────────────────
+
+const ICON_EMOJI: Record<string, string> = {
+  "chart-line": "📊",
+  image: "🖼️",
+  layers: "🔗",
+  shield: "🔒",
+  brain: "🤖",
+  lock: "🛡️",
+  users: "🏛️",
+  wrench: "🛠️",
+  "dollar-sign": "💲",
+  building: "🏠",
+  gamepad: "🎮",
+  fingerprint: "👤",
+  cube: "⚙️",
+  server: "🥩",
+  link: "🌐",
+  gavel: "⚖️",
+  fire: "🔥",
+  "bar-chart": "📈",
+  leaf: "🌿",
+  rocket: "🚀",
+};
+
+function getIconEmoji(iconName: string): string {
+  return ICON_EMOJI[iconName] ?? "📌";
+}
 
 // ─── Helpers ─────────────────────────────────────────
 
+function generateTrendData(): number[] {
+  const pts: number[] = [];
+  let v = 20 + Math.random() * 60;
+  for (let i = 0; i < 20; i++) {
+    v += (Math.random() - 0.45) * 10;
+    v = Math.max(5, Math.min(95, v));
+    pts.push(v);
+  }
+  return pts;
+}
+
+/** Format wei string to human-readable TRUST amount */
 function formatTrust(wei: string): string {
-  const n = Number(wei) / 1e18;
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
-  if (n >= 1) return n.toFixed(2);
-  if (n >= 0.01) return n.toFixed(3);
-  return n.toFixed(4);
+  const val = Number(BigInt(wei)) / 1e18;
+  if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+  if (val >= 1) return val.toFixed(2);
+  if (val >= 0.01) return val.toFixed(3);
+  if (val > 0) return val.toFixed(4);
+  return "0";
 }
 
-function shortenAddr(addr: string): string {
-  if (addr.length <= 10) return addr;
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+const VOTE_STORAGE_KEY = "ethcc-votes";
+
+function loadVotes(): Set<string> {
+  try {
+    const raw = localStorage.getItem(VOTE_STORAGE_KEY);
+    if (raw) return new Set(JSON.parse(raw));
+  } catch { /* ignore */ }
+  return new Set();
 }
 
-// ─── Wallet Gate ─────────────────────────────────────
-
-function WalletGate({ onConnected }: { onConnected: (w: WalletConnection) => void }) {
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-
-  async function handleConnect() {
-    setError("");
-    setStatus("Connecting...");
-    try {
-      const connection = await connectWallet();
-      setStatus("");
-      onConnected(connection);
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
-      setStatus("");
-    }
-  }
-
-  return (
-    <div className="wallet-gate">
-      <h2>EthCC Sofia Manager</h2>
-      <p>Connect your wallet to trade conviction on web3 topics. Every vote is on-chain.</p>
-      <button className="connect-btn" onClick={handleConnect} disabled={!!status}>
-        {status || "Connect Wallet"}
-      </button>
-      {error && <p style={{ color: "#ff5c7a", fontSize: "0.82rem" }}>{error}</p>}
-    </div>
-  );
+function saveVotes(votes: Set<string>) {
+  localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify([...votes]));
 }
 
-// ─── Topic Row (trading style) ───────────────────────
+// ─── Styles ──────────────────────────────────────────
 
-function TopicRow({
-  topic,
-  category,
-  selected,
-  vaultData,
-  chartData,
-  index,
-  onSelect,
-  onTap,
-}: {
-  topic: Web3Topic;
-  category: Web3Category;
-  selected: boolean;
-  vaultData?: TopicVaultData;
-  chartData?: number[];
-  index: number;
-  onSelect: (id: string) => void;
-  onTap: (id: string) => void;
-}) {
-  const sparkData = chartData && chartData.length >= 2 ? chartData : null;
-  const isUp = sparkData ? sparkData[sparkData.length - 1] > sparkData[0] : true;
+const page: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  background: "transparent",
+  color: C.textPrimary,
+  fontFamily: FONT,
+  overflow: "hidden",
+};
 
-  return (
-    <div
-      className={`topic-row${selected ? " selected" : ""}`}
-      style={{ animationDelay: `${index * 0.025}s` }}
-      onClick={() => onTap(topic.id)}
-    >
-      {/* Color accent */}
-      <div className="topic-row-accent" style={{ background: category.color }} />
+const heroBox: CSSProperties = {
+  background: "#D790C7",
+  borderRadius: `0 0 ${R.xl}px ${R.xl}px`,
+  padding: "0 0 24px",
+  color: C.dark,
+  overflow: "hidden",
+  boxSizing: "border-box",
+};
 
-      {/* Left: info */}
-      <div className="topic-row-info">
-        <div className="topic-row-name">{topic.name}</div>
-        <div className="topic-row-meta">
-          <span style={{ color: category.color }}>{category.name}</span>
-          <span className="topic-row-dot">·</span>
-          <span>{topic.type}</span>
-        </div>
-      </div>
+const statRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  gap: 8,
+  marginTop: 12,
+  padding: "0 20px",
+};
 
-      {/* Center: sparkline (real on-chain data only) */}
-      <div className="topic-row-chart">
-        {sparkData ? (
-          <SparkChart
-            data={sparkData}
-            width={72}
-            height={28}
-            color={isUp ? "#2acecc" : "#ff5c7a"}
-          />
-        ) : (
-          <div style={{ width: 72, height: 28, opacity: 0.15, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0.55rem", color: "rgba(255,255,255,0.3)" }}>
-            no data
-          </div>
-        )}
-      </div>
+const statItem: CSSProperties = {
+  flex: 1,
+  textAlign: "center" as const,
+};
 
-      {/* Right: support/oppose + vote button */}
-      <div className="topic-row-right">
-        {vaultData ? (
-          <div className="topic-row-value">
-            <div className="topic-row-sentiment">
-              <span className="topic-row-support">{formatTrust(vaultData.supportAssets)}</span>
-              <span className="topic-row-vs">/</span>
-              <span className="topic-row-oppose">{formatTrust(vaultData.opposeAssets)}</span>
-            </div>
-            <span className="topic-row-unit">support / oppose</span>
-          </div>
-        ) : (
-          <div className="topic-row-value">
-            <span className="topic-row-support" style={{ opacity: 0.3 }}>--</span>
-          </div>
-        )}
-        <button
-          className={`topic-row-btn${selected ? " active" : ""}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(topic.id);
-          }}
-        >
-          {selected ? "✓" : "+"}
-        </button>
-      </div>
-    </div>
-  );
-}
+const statVal: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 700,
+  fontFamily: FONT,
+};
 
-// ─── Topic Detail Sheet ──────────────────────────────
+const statLabel: CSSProperties = {
+  fontSize: 11,
+  opacity: 0.6,
+  marginTop: 2,
+};
 
-function TopicSheet({
-  topic,
-  category,
-  vaultData,
-  chartData,
-  voters,
-  loadingVoters,
-  onClose,
-}: {
-  topic: Web3Topic;
-  category: Web3Category;
-  vaultData?: TopicVaultData;
-  chartData: number[];
-  voters: TopicPosition[];
-  loadingVoters: boolean;
-  onClose: () => void;
-}) {
+// bendsWrap removed
 
-  return (
-    <div className="sheet-overlay" onClick={onClose}>
-      <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-handle" />
+const tabRow: CSSProperties = {
+  display: "flex",
+  gap: 8,
+  padding: "12px 16px 8px",
+  overflowX: "auto",
+  flexShrink: 0,
+};
 
-        {/* Header */}
-        <div className="sheet-header">
-          <div className="sheet-badge" style={{ background: category.color }}>
-            {topic.type}
-          </div>
-          <h3 className="sheet-title">{topic.name}</h3>
-          <p className="sheet-desc">{topic.description}</p>
-        </div>
+const tabBtn = (active: boolean): CSSProperties => ({
+  padding: "8px 18px",
+  borderRadius: R.btn,
+  border: "none",
+  background: active ? "#D790C7" : C.surfaceGray,
+  color: active ? "#0a0a0a" : C.textSecondary,
+  fontSize: 13,
+  fontWeight: 600,
+  fontFamily: FONT,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+});
 
-        {/* Chart */}
-        <div className="sheet-chart">
-          {chartData.length >= 2 ? (
-            <SparkChart data={chartData} width={320} height={100} color={category.color} />
-          ) : (
-            <div style={{ padding: "1.5rem", textAlign: "center", color: "rgba(255,255,255,0.25)", fontSize: "0.8rem" }}>
-              No trading activity yet
-            </div>
-          )}
-        </div>
+const topicCard: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 10px",
+  padding: 14,
+};
 
-        {/* Stats */}
-        <div className="sheet-stats">
-          <div className="sheet-stat">
-            <span className="sheet-stat-value" style={{ color: "#2acecc" }}>
-              {vaultData ? formatTrust(vaultData.supportAssets) : "0"}
-            </span>
-            <span className="sheet-stat-label">Support</span>
-          </div>
-          <div className="sheet-stat">
-            <span className="sheet-stat-value" style={{ color: "#ff5c7a" }}>
-              {vaultData ? formatTrust(vaultData.opposeAssets) : "0"}
-            </span>
-            <span className="sheet-stat-label">Oppose</span>
-          </div>
-          <div className="sheet-stat">
-            <span className="sheet-stat-value">
-              {(vaultData?.supportCount ?? 0) + (vaultData?.opposeCount ?? 0)}
-            </span>
-            <span className="sheet-stat-label">Voters</span>
-          </div>
-        </div>
+const topicIcon: CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: R.md,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 18,
+  flexShrink: 0,
+};
 
-        {/* Voters list */}
-        <div className="sheet-section">
-          <h4 className="sheet-section-title">Who supports this</h4>
-          {loadingVoters ? (
-            <div className="sheet-loading">Loading voters...</div>
-          ) : voters.length === 0 ? (
-            <div className="sheet-empty">No votes yet — be the first!</div>
-          ) : (
-            <div className="sheet-voters">
-              {voters.slice(0, 20).map((v, i) => (
-                <div key={i} className="sheet-voter">
-                  <div className="sheet-voter-avatar">
-                    {v.address.slice(2, 4).toUpperCase()}
-                  </div>
-                  <span className="sheet-voter-addr">{shortenAddr(v.address)}</span>
-                  <span className="sheet-voter-shares">
-                    {formatTrust(v.shares)} shares
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+const topicInfo: CSSProperties = {
+  flex: 1,
+  minWidth: 0,
+};
 
-        <button className="sheet-close" onClick={onClose}>Close</button>
-      </div>
-    </div>
-  );
-}
+const topicName: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: C.textPrimary,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
 
-// ─── Swipe Card ──────────────────────────────────────
+const topicMeta: CSSProperties = {
+  fontSize: 11,
+  color: C.textSecondary,
+  marginTop: 2,
+};
 
-function SwipeMode({
-  topics,
-  voted,
-  onVote,
-  chartDataMap,
-}: {
-  topics: { topic: Web3Topic; category: Web3Category }[];
-  voted: Set<string>;
-  onVote: (topicId: string) => void;
-  chartDataMap: Map<string, number[]>;
-}) {
-  const unvoted = useMemo(
-    () => topics.filter((t) => !voted.has(t.topic.id)),
-    [topics, voted]
-  );
-  const [currentIdx, setCurrentIdx] = useState(0);
+// voteCount inlined in topicMeta
 
-  if (currentIdx >= unvoted.length) {
-    return (
-      <div className="swipe-container">
-        <div className="swipe-card">
-          <div className="swipe-name">All done!</div>
-          <div className="swipe-desc">
-            You've seen all {topics.length} topics. Switch to list view to review.
-          </div>
-        </div>
-      </div>
-    );
-  }
+const supportBtn = (state: "support" | "supported" | "redeem"): CSSProperties => ({
+  padding: "6px 14px",
+  borderRadius: R.btn,
+  border: "none",
+  background: state === "redeem" ? C.errorLight : state === "supported" ? C.successLight : "#D790C7",
+  color: state === "redeem" ? C.error : state === "supported" ? C.success : "#0a0a0a",
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: FONT,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+  flexShrink: 0,
+});
 
-  const { topic, category } = unvoted[currentIdx];
+// Discover card styles
+const discoverCard: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px",
+  padding: 16,
+  textAlign: "center" as const,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 8,
+};
 
-  return (
-    <div className="swipe-container">
-      <div className="swipe-progress">
-        {currentIdx + 1} / {unvoted.length}
-      </div>
-      <div
-        className="swipe-card"
-        key={topic.id}
-        style={{ "--accent": category.color } as React.CSSProperties}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 3,
-            background: category.color,
-          }}
-        />
-        <div className="swipe-category" style={{ color: category.color }}>
-          {category.name}
-        </div>
-        <div className="swipe-type">{topic.type}</div>
-        <div className="swipe-name">{topic.name}</div>
-        <div className="swipe-desc">{topic.description}</div>
-        <div className="swipe-chart">
-          {(chartDataMap.get(topic.id)?.length ?? 0) >= 2 ? (
-            <SparkChart
-              data={chartDataMap.get(topic.id)!}
-              width={200}
-              height={60}
-              color={category.color}
-            />
-          ) : (
-            <div style={{ padding: "0.5rem", color: "rgba(255,255,255,0.2)", fontSize: "0.7rem" }}>
-              No activity yet
-            </div>
-          )}
-        </div>
-      </div>
-      <div className="swipe-actions">
-        <button
-          className="swipe-action skip"
-          onClick={() => setCurrentIdx((i) => i + 1)}
-          title="Skip"
-        >
-          &times;
-        </button>
-        <button
-          className="swipe-action like"
-          onClick={() => {
-            onVote(topic.id);
-            setCurrentIdx((i) => i + 1);
-          }}
-          title="Vote"
-        >
-          &hearts;
-        </button>
-      </div>
-    </div>
-  );
-}
+const discoverName: CSSProperties = {
+  fontSize: 22,
+  fontWeight: 700,
+  color: C.textPrimary,
+};
 
-// ─── Portfolio View ──────────────────────────────────
+const discoverDesc: CSSProperties = {
+  fontSize: 13,
+  color: C.textSecondary,
+  lineHeight: 1.5,
+  maxWidth: "100%",
+  padding: "0 8px",
+  boxSizing: "border-box" as const,
+};
 
-const CARD_COLORS = [
-  { bg: "#E74C3C", light: "#FADBD8" },
-  { bg: "#F4D03F", light: "#FEF9E7" },
-  { bg: "#3498DB", light: "#D6EAF8" },
-  { bg: "#2acecc", light: "#D1F2EB" },
-  { bg: "#9B59B6", light: "#EBDEF0" },
-  { bg: "#E67E22", light: "#FDEBD0" },
-  { bg: "#1ABC9C", light: "#D1F2EB" },
-  { bg: "#E91E63", light: "#FCE4EC" },
-];
+const discoverActions: CSSProperties = {
+  display: "flex",
+  gap: 16,
+  marginTop: 12,
+  padding: "0 16px",
+  justifyContent: "center",
+  flexShrink: 0,
+};
 
-function PortfolioView({
-  portfolio,
-  loading,
-  onRedeem,
-  redeemingId,
-}: {
-  wallet: WalletConnection;
-  portfolio: PortfolioSummary | null;
-  loading: boolean;
-  onRedeem: (pos: UserPosition) => void;
-  redeemingId: string;
-}) {
-  if (loading) {
-    return <div className="pf-loading">Loading positions...</div>;
-  }
+// Skip/Like buttons inlined in discover section
 
-  if (!portfolio || portfolio.positions.length === 0) {
-    return (
-      <div className="pf-empty">
-        <div className="pf-empty-icon">&#128176;</div>
-        <div className="pf-empty-title">No positions yet</div>
-        <div className="pf-empty-desc">
-          Vote on topics to build your on-chain portfolio
-        </div>
-      </div>
-    );
-  }
+// Portfolio styles
+const portfolioCard: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 10px",
+  padding: "14px 16px",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+};
 
-  const totalVal = Number(portfolio.totalValue) / 1e18;
-  const pnlVal = Number(portfolio.totalPnl) / 1e18;
+const withdrawBtn: CSSProperties = {
+  padding: "6px 14px",
+  borderRadius: R.btn,
+  border: `1px solid ${C.error}`,
+  background: "transparent",
+  color: C.error,
+  fontSize: 12,
+  fontWeight: 600,
+  fontFamily: FONT,
+  cursor: "pointer",
+  flexShrink: 0,
+};
 
-  return (
-    <div className="pf">
-      {/* Hero balance */}
-      <div className="pf-hero">
-        <div className="pf-hero-label">Total Balance</div>
-        <div className="pf-hero-amount">{totalVal.toFixed(4)} TRUST</div>
-        <div className="pf-hero-row">
-          <div className="pf-hero-stat">
-            <span className="pf-hero-stat-label">Positions</span>
-            <span className="pf-hero-stat-value">{portfolio.positions.length}</span>
-          </div>
-          <div className="pf-hero-stat">
-            <span className="pf-hero-stat-label">P&L</span>
-            <span
-              className="pf-hero-stat-value"
-              style={{ color: pnlVal >= 0 ? "#2acecc" : "#ff5c7a" }}
-            >
-              {pnlVal >= 0 ? "+" : ""}{formatTrust(portfolio.totalPnl)}
-            </span>
-          </div>
-        </div>
-      </div>
+const perfBadge = (up: boolean): CSSProperties => ({
+  fontSize: 12,
+  fontWeight: 600,
+  color: up ? C.success : C.error,
+  marginRight: 8,
+});
 
-      {/* Position cards */}
-      <div className="pf-section-title">Your Positions</div>
-      <div className="pf-cards">
-        {portfolio.positions.map((pos, i) => {
-          const color = CARD_COLORS[i % CARD_COLORS.length];
-          const isRedeeming = redeemingId === `${pos.tripleId}-${pos.side}`;
-          const shares = Number(pos.shares) / 1e18;
-          const currentVal = Number(pos.currentValue) / 1e18;
-          const pnl = Number(pos.pnl);
+// ─── Component ───────────────────────────────────────
 
-          return (
-            <div
-              key={`${pos.tripleId}-${pos.side}`}
-              className="pf-card"
-              style={{ background: color.bg }}
-            >
-              <div className="pf-card-header">
-                <span className="pf-card-name">{pos.topicLabel}</span>
-                <span className={`pf-card-pnl-badge ${pnl >= 0 ? "up" : "down"}`}>
-                  {pnl >= 0 ? "+" : ""}{pos.pnlPercent.toFixed(1)}%
-                </span>
-              </div>
-
-              <div className="pf-card-balance-label">Balance</div>
-              <div className="pf-card-balance">
-                <span className="pf-card-amount">{currentVal.toFixed(4)}</span>
-                <span className="pf-card-unit">TRUST</span>
-              </div>
-
-              <div className="pf-card-bar-track">
-                <div
-                  className="pf-card-bar-fill"
-                  style={{
-                    width: `${totalVal > 0 ? Math.min(100, (shares / totalVal) * 100) : 0}%`,
-                    background: color.light,
-                  }}
-                />
-              </div>
-
-              <div className="pf-card-footer">
-                <div className="pf-card-shares">
-                  {shares.toFixed(4)} shares
-                </div>
-                <button
-                  className="pf-card-redeem"
-                  onClick={(e) => { e.stopPropagation(); onRedeem(pos); }}
-                  disabled={isRedeeming}
-                >
-                  {isRedeeming ? "..." : "Redeem"}
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ─── Main VotePage ───────────────────────────────────
+type Tab = "trending" | "myvotes" | "discover";
 
 export default function VotePage() {
-  const [wallet, setWallet] = useState<WalletConnection | null>(null);
-  const [mode, setMode] = useState<"list" | "swipe" | "trending" | "portfolio" | "community">("list");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [submitting, setSubmitting] = useState(false);
-  const [submitStep, setSubmitStep] = useState("");
-  const [submitError, setSubmitError] = useState("");
-  const [txHash, setTxHash] = useState("");
+  const [tab, setTab] = useState<Tab>("trending");
+  const [userVotes, setUserVotes] = useState<Set<string>>(() => loadVotes());
+  const [discoverIdx, setDiscoverIdx] = useState(0);
+  const { addToCart, removeFromCart } = useCart();
 
-  // Trending data
-  const [trendingData, setTrendingData] = useState<TopicVaultData[]>([]);
-  const [loadingTrending, setLoadingTrending] = useState(false);
+  // ─── Real Intuition data ───────────────────────────
+  const [realTrending, setRealTrending] = useState<TopicVaultData[]>([]);
+  const [realChartData, setRealChartData] = useState<Map<string, number[]>>(new Map());
+  const [loading, setLoading] = useState(true);
+  const hasRealData = realTrending.length > 0;
 
-  // Portfolio
-  const [portfolio, setPortfolio] = useState<PortfolioSummary | null>(null);
-  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
-  const [redeemingId, setRedeemingId] = useState("");
+  useEffect(() => {
+    setLoading(true);
+    Promise.all([fetchTrendingTopics(), fetchAllTopicEvents()])
+      .then(([trending, charts]) => {
+        setRealTrending(trending);
+        setRealChartData(charts);
+      })
+      .catch(() => { /* GraphQL failed — keep mock fallback */ })
+      .finally(() => setLoading(false));
+  }, []);
 
-  // Community (like-minded voters)
-  const [communityData, setCommunityData] = useState<{ address: string; commonTopics: string[]; count: number }[]>([]);
-  const [loadingCommunity, setLoadingCommunity] = useState(false);
-
-  // Chart data (real on-chain events)
-  const [chartDataMap, setChartDataMap] = useState<Map<string, number[]>>(new Map());
-
-  // Detail sheet
-  const [detailTopic, setDetailTopic] = useState<string | null>(null);
-  const [detailVoters, setDetailVoters] = useState<TopicPosition[]>([]);
-  const [detailChartData, setDetailChartData] = useState<number[]>([]);
-  const [loadingVoters, setLoadingVoters] = useState(false);
-
-  // Vault data map for quick lookup
-  const vaultMap = useMemo(() => {
+  // Index real trending data by topicId for quick lookup
+  const realDataMap = useMemo(() => {
     const m = new Map<string, TopicVaultData>();
-    for (const d of trendingData) m.set(d.topicId, d);
+    for (const t of realTrending) m.set(t.topicId, t);
     return m;
-  }, [trendingData]);
+  }, [realTrending]);
 
-  // Fetch trending + chart data on mount
+  // Persist votes
   useEffect(() => {
-    setLoadingTrending(true);
-    fetchTrendingTopics()
-      .then(setTrendingData)
-      .catch(() => {})
-      .finally(() => setLoadingTrending(false));
-    fetchAllTopicEvents()
-      .then(setChartDataMap)
-      .catch(() => {});
+    saveVotes(userVotes);
+  }, [userVotes]);
+
+  // Pre-generate trend data per topic (stable across renders)
+  const trendDataMap = useMemo(() => {
+    const m = new Map<string, number[]>();
+    allTopics.forEach((t) => m.set(t.id, generateTrendData()));
+    return m;
   }, []);
 
-  // Fetch portfolio when mode switches
-  useEffect(() => {
-    if (mode !== "portfolio" || !wallet) return;
-    setLoadingPortfolio(true);
-    fetchPortfolio(wallet.address, wallet)
-      .then((p) => {
-        console.log("[P&L] Portfolio loaded:", p.positions.length, "positions", p);
-        setPortfolio(p);
-      })
-      .catch((err) => {
-        console.error("[P&L] Failed to fetch portfolio:", err);
-      })
-      .finally(() => setLoadingPortfolio(false));
-  }, [mode, wallet]);
-
-  // Fetch community when mode switches
-  useEffect(() => {
-    if (mode !== "community" || !wallet) return;
-    setLoadingCommunity(true);
-    fetchLikeMinded(wallet.address)
-      .then(setCommunityData)
-      .catch(() => {})
-      .finally(() => setLoadingCommunity(false));
-  }, [mode, wallet]);
-
-  const handleRedeem = useCallback(
-    async (pos: UserPosition) => {
-      if (!wallet) return;
-      const id = `${pos.tripleId}-${pos.side}`;
-      setRedeemingId(id);
-      try {
-        await redeemPosition(wallet, pos.tripleId, BigInt(pos.shares));
-        // Refresh portfolio after redeem
-        const updated = await fetchPortfolio(wallet.address, wallet);
-        setPortfolio(updated);
-        // Refresh trending too
-        fetchTrendingTopics().then(setTrendingData).catch(() => {});
-      } catch {
-        // User rejected or error — silently reset
-      } finally {
-        setRedeemingId("");
-      }
-    },
-    [wallet]
-  );
-
-  // Fetch voters + detailed chart when detail sheet opens
-  useEffect(() => {
-    if (!detailTopic) return;
-    setLoadingVoters(true);
-    setDetailVoters([]);
-    setDetailChartData([]);
-    fetchTopicVoters(detailTopic)
-      .then(setDetailVoters)
-      .catch(() => {})
-      .finally(() => setLoadingVoters(false));
-    fetchTopicEvents(detailTopic)
-      .then((events) => setDetailChartData(eventsToChartData(events)))
-      .catch(() => {});
-  }, [detailTopic]);
-
-  const handleSelect = useCallback((topicId: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(topicId)) next.delete(topicId);
-      else next.add(topicId);
-      return next;
+  // Simulated vote counts
+  const voteCountMap = useMemo(() => {
+    const m = new Map<string, number>();
+    allTopics.forEach((t) => {
+      m.set(t.id, Math.floor(Math.random() * 200) + 5);
     });
-    setTxHash("");
-    setSubmitError("");
+    return m;
   }, []);
 
-  const handleSubmitVotes = useCallback(async () => {
-    if (!wallet || selected.size === 0) return;
-    setSubmitting(true);
-    setSubmitError("");
-    setTxHash("");
-    try {
-      const result = await submitVotes(wallet, Array.from(selected), undefined, setSubmitStep);
-      setTxHash(result.hash);
-      setSubmitStep(`${result.tripleCount} votes confirmed!`);
-      // Refresh trending
-      fetchTrendingTopics().then(setTrendingData).catch(() => {});
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      setSubmitError(msg.includes("rejected") || msg.includes("ACTION_REJECTED") ? "Transaction rejected" : msg);
-    } finally {
-      setSubmitting(false);
+  // Category lookup
+  const categoryMap = useMemo(() => {
+    const m = new Map<string, Web3Category>();
+    categories.forEach((c) => c.topics.forEach((t) => m.set(t.id, c)));
+    return m;
+  }, []);
+
+  // Sorted topics for trending — prefer real on-chain data for ordering
+  const trendingTopics = useMemo(() => {
+    if (hasRealData) {
+      return [...allTopics].sort((a, b) => {
+        const aData = realDataMap.get(a.id);
+        const bData = realDataMap.get(b.id);
+        const aAssets = aData ? BigInt(aData.supportAssets) : 0n;
+        const bAssets = bData ? BigInt(bData.supportAssets) : 0n;
+        return Number(bAssets - aAssets);
+      });
     }
-  }, [wallet, selected]);
+    return [...allTopics].sort((a, b) => (voteCountMap.get(b.id) ?? 0) - (voteCountMap.get(a.id) ?? 0));
+  }, [voteCountMap, hasRealData, realDataMap]);
 
-  // Flat list
-  const allTopicsWithCategory = useMemo(
-    () => categories.flatMap((cat) => cat.topics.map((t) => ({ topic: t, category: cat }))),
-    []
-  );
+  // My voted topics
+  const myVotedTopics = useMemo(() => {
+    return allTopics.filter((t) => userVotes.has(t.id));
+  }, [userVotes]);
 
-  const filteredTopics = useMemo(
-    () =>
-      activeCategory
-        ? allTopicsWithCategory.filter((t) => t.category.id === activeCategory)
-        : allTopicsWithCategory,
-    [activeCategory, allTopicsWithCategory]
-  );
+  // Unvoted for discover
+  const unvotedTopics = useMemo(() => {
+    return allTopics.filter((t) => !userVotes.has(t.id));
+  }, [userVotes]);
 
-  // Detail sheet topic data
-  const detailTopicData = useMemo(() => {
-    if (!detailTopic) return null;
-    const found = allTopicsWithCategory.find((t) => t.topic.id === detailTopic);
-    return found ?? null;
-  }, [detailTopic, allTopicsWithCategory]);
+  // Track "redeem" state per topic
+  const [redeemState, setRedeemState] = useState<Set<string>>(new Set());
 
-  // Not connected
-  if (!wallet) {
-    return (
-      <div className="vote-page">
-        <div className="vote-content">
-          <WalletGate onConnected={setWallet} />
-        </div>
-      </div>
-    );
-  }
+  const handleVoteClick = useCallback((topicId: string) => {
+    const supported = userVotes.has(topicId);
+    const inRedeem = redeemState.has(topicId);
+
+    if (!supported) {
+      // Support → add to votes + cart
+      setUserVotes((prev) => { const next = new Set(prev); next.add(topicId); return next; });
+      addToCart(topicId);
+    } else if (!inRedeem) {
+      // Supported → show Redeem
+      setRedeemState((prev) => { const next = new Set(prev); next.add(topicId); return next; });
+    } else {
+      // Redeem → remove from votes + cart, clear redeem
+      setUserVotes((prev) => { const next = new Set(prev); next.delete(topicId); return next; });
+      removeFromCart(topicId);
+      setRedeemState((prev) => { const next = new Set(prev); next.delete(topicId); return next; });
+    }
+  }, [userVotes, redeemState, addToCart, removeFromCart]);
+
+  const getVoteLabel = (topicId: string) => {
+    if (!userVotes.has(topicId)) return "Support";
+    if (redeemState.has(topicId)) return "Redeem";
+    return "Supported";
+  };
+
+  const handleSkip = () => setDiscoverIdx((i) => i + 1);
+  const handleSupport = () => {
+    if (discoverIdx < unvotedTopics.length) {
+      handleVoteClick(unvotedTopics[discoverIdx].id);
+      setDiscoverIdx((i) => i + 1);
+    }
+  };
+
+  // Category distribution colors for CBends
+  // catBends removed
+
+  const totalSupported = userVotes.size;
+
+  // Real aggregate stats
+  const realStats = useMemo(() => {
+    if (!hasRealData) return null;
+    let totalAssets = 0n;
+    let totalSupporters = 0;
+    let topicsWithVotes = 0;
+    for (const t of realTrending) {
+      totalAssets += BigInt(t.supportAssets);
+      totalSupporters += t.supportCount;
+      if (t.supportCount > 0) topicsWithVotes++;
+    }
+    return {
+      totalTrust: formatTrust(totalAssets.toString()),
+      supporters: totalSupporters,
+      activeTopics: topicsWithVotes,
+    };
+  }, [hasRealData, realTrending]);
 
   return (
-    <div className="vote-page">
-      <div className="vote-content">
-        {/* Header */}
-        <div className="vote-header">
-          <h1>EthCC Sofia Manager</h1>
-          <p>{shortenAddr(wallet.address)} · {allTopicsWithCategory.length} topics</p>
-        </div>
+    <div style={page}>
+      {/* Fixed color background */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200, background: "#D790C7", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, zIndex: 0 }} />
 
-        {/* Mode toggle */}
-        <div className="mode-toggle">
-          <button className={`mode-btn${mode === "list" ? " active" : ""}`} onClick={() => setMode("list")}>
-            List
-          </button>
-          <button className={`mode-btn${mode === "trending" ? " active" : ""}`} onClick={() => setMode("trending")}>
-            Trending
-          </button>
-          <button className={`mode-btn${mode === "swipe" ? " active" : ""}`} onClick={() => setMode("swipe")}>
-            Swipe
-          </button>
-          <button className={`mode-btn${mode === "portfolio" ? " active" : ""}`} onClick={() => setMode("portfolio")}>
-            P&L
-          </button>
-          <button className={`mode-btn${mode === "community" ? " active" : ""}`} onClick={() => setMode("community")}>
-            Community
-          </button>
+      {/* Scrollable content - hero + tabs + list */}
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24, position: "relative", zIndex: 1 }}>
+      {/* Hero stats */}
+      <div style={{ ...heroBox, background: "transparent" }}>
+        <div style={{ padding: "12px 20px 0" }}>
+          <div style={{ fontSize: 60, fontWeight: 900, lineHeight: 1 }}>Topic<br/>Market</div>
         </div>
+        <div style={statRow}>
+          <div style={statItem}>
+            <div style={statVal}>{realStats ? realStats.activeTopics : "-"}</div>
+            <div style={statLabel}>Active Topics</div>
+          </div>
+          <div style={statItem}>
+            <div style={statVal}>{realStats ? realStats.totalTrust : "-"}</div>
+            <div style={statLabel}>TRUST Staked</div>
+          </div>
+          <div style={statItem}>
+            <div style={statVal}>{realStats ? realStats.supporters : "-"}</div>
+            <div style={statLabel}>Supporters</div>
+          </div>
+          <div style={statItem}>
+            <div style={statVal}>{totalSupported || "-"}</div>
+            <div style={statLabel}>My Votes</div>
+          </div>
+        </div>
+      </div>
 
-        {/* Category pills */}
-        {mode !== "swipe" && mode !== "portfolio" && mode !== "community" && (
-          <div className="category-pills">
-            <button
-              className={`cat-pill${activeCategory === null ? " active" : ""}`}
-              style={activeCategory === null ? { background: "rgba(255,255,255,0.2)", color: "#fff" } : {}}
-              onClick={() => setActiveCategory(null)}
+      {/* Tabs */}
+      <div style={tabRow}>
+        <button style={tabBtn(tab === "trending")} onClick={() => setTab("trending")}>
+          Trending
+        </button>
+        <button style={tabBtn(tab === "myvotes")} onClick={() => setTab("myvotes")}>
+          My Votes
+        </button>
+        <button style={tabBtn(tab === "discover")} onClick={() => setTab("discover")}>
+          Discover
+        </button>
+      </div>
+
+      {/* ─── Trending ────────────────────── */}
+      {tab === "trending" && (
+        <div>
+          {loading && (
+            <div style={{ textAlign: "center", padding: 32, color: C.textTertiary, fontSize: 13 }}>
+              Loading on-chain data...
+            </div>
+          )}
+          {!loading && trendingTopics.map((topic) => {
+            const cat = categoryMap.get(topic.id);
+            const supported = userVotes.has(topic.id);
+            const rd = realDataMap.get(topic.id);
+            const count = rd ? rd.supportCount : (voteCountMap.get(topic.id) ?? 0);
+            const trustLabel = rd && BigInt(rd.supportAssets) > 0n ? ` · ${formatTrust(rd.supportAssets)} TRUST` : "";
+            const trend = realChartData.get(topic.id) ?? trendDataMap.get(topic.id) ?? [];
+            return (
+              <div key={topic.id} style={topicCard}>
+                {/* Row 1: icon + name + votes */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <div style={{ ...topicIcon, background: cat ? `${cat.color}22` : C.primaryLight }}>
+                    {getIconEmoji(cat?.icon ?? "")}
+                  </div>
+                  <div style={topicInfo}>
+                    <div style={topicName}>{topic.name}</div>
+                    <div style={topicMeta}>{cat?.name ?? "Other"} &middot; {count} votes{trustLabel}</div>
+                  </div>
+                </div>
+                {/* Row 2: spark + support */}
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <Spark data={trend} color={cat?.color ?? C.primary} h={28} />
+                  </div>
+                  <button
+                    style={supportBtn(!supported ? "support" : redeemState.has(topic.id) ? "redeem" : "supported")}
+                    onClick={() => handleVoteClick(topic.id)}
+                  >
+                    {getVoteLabel(topic.id)}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ─── My Votes (Portfolio) ─────────── */}
+      {tab === "myvotes" && (
+        <div>
+          {myVotedTopics.length === 0 ? (
+            <div
+              style={{
+                textAlign: "center",
+                padding: 40,
+                color: C.textTertiary,
+                fontSize: 14,
+              }}
             >
-              All
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                className={`cat-pill${activeCategory === cat.id ? " active" : ""}`}
-                style={activeCategory === cat.id ? { background: cat.color } : {}}
-                onClick={() => setActiveCategory(activeCategory === cat.id ? null : cat.id)}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Content */}
-        {mode === "list" && (
-          <div className="topic-list">
-            {filteredTopics.map(({ topic, category }, i) => (
-              <TopicRow
-                key={topic.id}
-                topic={topic}
-                category={category}
-                selected={selected.has(topic.id)}
-                vaultData={vaultMap.get(topic.id)}
-                chartData={chartDataMap.get(topic.id)}
-                index={i}
-                onSelect={handleSelect}
-                onTap={setDetailTopic}
-              />
-            ))}
-          </div>
-        )}
-
-        {mode === "trending" && (
-          <div className="topic-list">
-            {loadingTrending ? (
-              <div className="trending-loading">Loading on-chain data...</div>
-            ) : trendingData.length === 0 ? (
-              <div className="trending-empty">
-                No votes yet. Be the first to vote on a topic!
-              </div>
-            ) : (
-              trendingData
-                .filter((d) => {
-                  if (activeCategory) {
-                    const found = allTopicsWithCategory.find((t) => t.topic.id === d.topicId);
-                    if (!found || found.category.id !== activeCategory) return false;
-                  }
-                  return allTopicsWithCategory.some((t) => t.topic.id === d.topicId);
-                })
-                .map((d, i) => {
-                  const found = allTopicsWithCategory.find((t) => t.topic.id === d.topicId)!;
-                  return (
-                    <TopicRow
-                      key={d.topicId}
-                      topic={found.topic}
-                      category={found.category}
-                      selected={selected.has(d.topicId)}
-                      vaultData={d}
-                      chartData={chartDataMap.get(d.topicId)}
-                      index={i}
-                      onSelect={handleSelect}
-                      onTap={setDetailTopic}
-                    />
-                  );
-                })
-            )}
-          </div>
-        )}
-
-        {mode === "swipe" && (
-          <SwipeMode topics={filteredTopics} voted={selected} onVote={handleSelect} chartDataMap={chartDataMap} />
-        )}
-
-        {mode === "portfolio" && wallet && (
-          <PortfolioView
-            wallet={wallet}
-            portfolio={portfolio}
-            loading={loadingPortfolio}
-            onRedeem={handleRedeem}
-            redeemingId={redeemingId}
-          />
-        )}
-
-        {mode === "community" && (
-          <div className="community-view">
-            <h2 className="community-title">People who think like you</h2>
-            <p className="community-subtitle">
-              Participants who voted on the same topics as you.
-            </p>
-
-            {loadingCommunity && (
-              <div className="pf-loading">Searching for your tribe...</div>
-            )}
-
-            {!loadingCommunity && communityData.length === 0 && (
-              <div className="community-empty">
-                <p>No matches yet.</p>
-                <p>Vote on topics first — then come back to discover who shares your convictions.</p>
-              </div>
-            )}
-
-            {!loadingCommunity && communityData.length > 0 && (
-              <div className="community-cards">
-                {communityData.map((person) => (
-                  <div key={person.address} className="community-card">
-                    <div className="community-card-header">
-                      <span className="community-card-addr">
-                        {person.address.length > 20
-                          ? `${person.address.slice(0, 6)}...${person.address.slice(-4)}`
-                          : person.address}
-                      </span>
-                      <span className="community-card-count">
-                        {person.count} shared
-                      </span>
-                    </div>
-                    <div className="community-card-topics">
-                      {person.commonTopics.map((t) => (
-                        <span key={t} className="community-pill">{t}</span>
-                      ))}
+              No votes yet. Support topics from Trending or Discover.
+            </div>
+          ) : (
+            myVotedTopics.map((topic) => {
+              const cat = categoryMap.get(topic.id);
+              const rd = realDataMap.get(topic.id);
+              const hasOnChain = rd && rd.supportCount > 0;
+              const perfUp = Math.random() > 0.3;
+              const perfPct = (Math.random() * 40 + 2).toFixed(1);
+              return (
+                <div key={topic.id} style={portfolioCard}>
+                  <div
+                    style={{
+                      ...topicIcon,
+                      background: cat ? `${cat.color}22` : C.primaryLight,
+                    }}
+                  >
+                    {getIconEmoji(cat?.icon ?? "")}
+                  </div>
+                  <div style={topicInfo}>
+                    <div style={topicName}>{topic.name}</div>
+                    <div style={topicMeta}>
+                      {cat?.name ?? "Other"}
+                      {hasOnChain
+                        ? ` · ${rd.supportCount} votes · ${formatTrust(rd.supportAssets)} TRUST`
+                        : ""}
                     </div>
                   </div>
-                ))}
+                  <span style={perfBadge(perfUp)}>
+                    {perfUp ? "+" : "-"}{perfPct}%
+                  </span>
+                  <button
+                    style={withdrawBtn}
+                    onClick={() => handleVoteClick(topic.id)}
+                  >
+                    Withdraw
+                  </button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* ─── Discover (Swipe) ─────────────── */}
+      {tab === "discover" && (
+        <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
+          {discoverIdx >= unvotedTopics.length ? (
+            <div style={discoverCard}>
+              <div style={{ fontSize: 36 }}>&#127881;</div>
+              <div style={discoverName}>All Explored!</div>
+              <div style={discoverDesc}>
+                You've seen all {allTopics.length} topics. Check your votes in the My Votes tab.
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Detail sheet */}
-        {detailTopicData && (
-          <TopicSheet
-            topic={detailTopicData.topic}
-            category={detailTopicData.category}
-            vaultData={vaultMap.get(detailTopicData.topic.id)}
-            chartData={detailChartData}
-            voters={detailVoters}
-            loadingVoters={loadingVoters}
-            onClose={() => setDetailTopic(null)}
-          />
-        )}
-
-        {/* Batch bar */}
-        {selected.size > 0 && (
-          <div className="batch-bar">
-            <div className="batch-info">
-              <span>{selected.size}</span> selected
             </div>
-            {txHash ? (
-              <a
-                href={explorerTxUrl(txHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="batch-submit"
-                style={{ textDecoration: "none" }}
-              >
-                View tx
-              </a>
-            ) : (
-              <button
-                className="batch-submit"
-                onClick={handleSubmitVotes}
-                disabled={submitting}
-              >
-                {submitting ? submitStep || "..." : `Vote on-chain (${selected.size})`}
-              </button>
-            )}
-            {submitError && (
-              <div style={{ color: "#ff5c7a", fontSize: "0.75rem", width: "100%", textAlign: "center" }}>
-                {submitError}
-              </div>
-            )}
-          </div>
-        )}
+          ) : (
+            (() => {
+              const topic = unvotedTopics[discoverIdx];
+              const cat = categoryMap.get(topic.id);
+              const trend = realChartData.get(topic.id) ?? trendDataMap.get(topic.id) ?? [];
+              return (
+                <>
+                  <div style={discoverCard}>
+                    <div
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: R.lg,
+                        background: cat ? `${cat.color}22` : C.primaryLight,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 28,
+                      }}
+                    >
+                      {getIconEmoji(cat?.icon ?? "")}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        color: cat?.color ?? C.primary,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {cat?.name ?? "Other"}
+                    </div>
+                    <div style={discoverName}>{topic.name}</div>
+                    <div
+                      style={{
+                        padding: "4px 12px",
+                        borderRadius: R.btn,
+                        background: "rgba(255,255,255,0.08)",
+                        fontSize: 11,
+                        color: C.textSecondary,
+                      }}
+                    >
+                      {topic.type}
+                    </div>
+                    <div style={{ ...discoverDesc, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{topic.description}</div>
+                    <Spark
+                      data={trend}
+                      color={cat?.color ?? C.primary}
+                      h={32}
+                    />
+                  </div>
+                  <div style={discoverActions}>
+                    <button
+                      onClick={handleSkip}
+                      style={{
+                        flex: 1, height: 48, borderRadius: R.btn,
+                        background: C.errorLight, color: C.error,
+                        fontSize: 15, fontWeight: 600, border: "none",
+                        cursor: "pointer", display: "flex", alignItems: "center",
+                        justifyContent: "center", gap: 8, fontFamily: FONT,
+                      }}
+                    >
+                      &#10005; Skip
+                    </button>
+                    <button
+                      onClick={handleSupport}
+                      style={{
+                        flex: 1, height: 48, borderRadius: R.btn,
+                        background: "#D790C7", color: "#0a0a0a",
+                        fontSize: 15, fontWeight: 600, border: "none",
+                        cursor: "pointer", display: "flex", alignItems: "center",
+                        justifyContent: "center", gap: 8, fontFamily: FONT,
+                      }}
+                    >
+                      &#9829; Support
+                    </button>
+                  </div>
+                </>
+              );
+            })()
+          )}
+        </div>
+      )}
       </div>
     </div>
   );

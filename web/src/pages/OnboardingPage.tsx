@@ -1,0 +1,935 @@
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
+import { C, R, glassSurface, btnPill, FONT, getTrackStyle } from "../config/theme";
+import { sessions, trackNames } from "../data";
+import { Ic } from "../components/ui/Icons";
+
+import { VIBES } from "../data/social";
+import { StorageService } from "../services/StorageService";
+import { CBends } from "../components/ui/CBends";
+import { Dots } from "../components/ui/Dots";
+import { SplashBg } from "../components/ui/SplashBg";
+import { QRCodeSVG } from "qrcode.react";
+import {
+  connectWallet,
+  approveProxy,
+  ensureUserAtom,
+  buildProfileTriples,
+  createProfileTriples,
+} from "../services/intuition";
+import type { WalletConnection } from "../services/intuition";
+import { useVibeMatches } from "../hooks/useVibeMatches";
+import { explorerTxUrl } from "../config/constants";
+// Logo image loaded from public/images/logo-splash.png
+
+// ─── Image base path (matches Vite base) ───────────────────────
+const IMG = import.meta.env.BASE_URL + "images/";
+
+// ─── Slide data ─────────────────────────────────────────────────
+const SLIDES = [
+  {
+    image: `${IMG}slide-interests.png`,
+    title: "Share what\nyou love",
+    subtitle: "Your interests, on-chain.",
+    size: 360,
+  },
+  {
+    image: `${IMG}slide-sessions.png`,
+    title: "Find the best\nsessions",
+    subtitle: "83 talks, workshops & panels.",
+    size: 360,
+  },
+  {
+    image: `${IMG}slide-vibes.png`,
+    title: "Meet your\nvibe matches",
+    subtitle: "Connect with nearby attendees.",
+    size: 648,
+  },
+];
+
+// ─── Preload all slide images on module load ────────────────────
+const ALL_IMAGES = [
+  `${IMG}logo-splash.png`,
+  `${IMG}slide-interests.png`,
+  `${IMG}slide-sessions.png`,
+  `${IMG}slide-vibes.png`,
+];
+ALL_IMAGES.forEach((src) => {
+  const img = new Image();
+  img.src = src;
+});
+
+// ─── Styles ─────────────────────────────────────────────────────
+const page: CSSProperties = {
+  flex: 1,
+  display: "flex",
+  flexDirection: "column",
+  background: "transparent",
+  color: C.textPrimary,
+  fontFamily: FONT,
+  overflow: "hidden",
+};
+
+const center: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  flex: 1,
+  padding: "0 24px",
+  textAlign: "center",
+};
+
+const heading: CSSProperties = {
+  fontSize: 28,
+  fontWeight: 700,
+  margin: "16px 0 8px",
+  color: C.white,
+};
+
+const sub: CSSProperties = {
+  fontSize: 14,
+  color: C.textSecondary,
+  lineHeight: 1.5,
+  maxWidth: 300,
+};
+
+const pillBtn: CSSProperties = { ...btnPill, background: C.flat, margin: "24px 24px 40px", width: "calc(100% - 48px)" };
+
+// Image-based slides replaced emoji orbits
+
+const trackPill: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 6,
+  padding: "8px 14px",
+  borderRadius: R.btn,
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: "pointer",
+  border: "1px solid transparent",
+  transition: "all 0.2s ease",
+  fontFamily: FONT,
+  color: C.textPrimary,
+  background: "rgba(255,255,255,0.06)",
+};
+
+// sessionCard style inlined in step 5
+
+const scrollArea: CSSProperties = {
+  flex: 1,
+  overflowY: "auto",
+  WebkitOverflowScrolling: "touch",
+  padding: "0 20px 24px",
+};
+
+// sectionTitle inlined in steps
+
+const bottomBar: CSSProperties = {
+  flexShrink: 0,
+  padding: "12px 24px 24px",
+  background: "transparent",
+  borderTop: `1px solid ${C.border}`,
+  boxSizing: "border-box",
+};
+
+// ─── Component ──────────────────────────────────────────────────
+export default function OnboardingPage() {
+  const navigate = useNavigate();
+  const [step, setStep] = useState(0);
+  const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
+  const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+
+  // ── Wallet state ──────────────────────────────────────────────
+  const [walletState, setWalletState] = useState<"idle"|"connecting"|"connected"|"signing"|"done">("idle");
+  const [wallet, setWallet] = useState<WalletConnection | null>(null);
+  const [walletAddress, setWalletAddress] = useState("");
+  const [trustBalance, setTrustBalance] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState("");
+  const [txError, setTxError] = useState("");
+  const [txStatus, setTxStatus] = useState("");
+
+  // ── Vibe matches (for step 7 success screen) ─────────────────
+  const { matches: vibeMatchesData, loading: vibeLoading } = useVibeMatches(
+    selectedTracks,
+    [...selectedSessions],
+    walletAddress,
+  );
+
+  // ── Balance polling ───────────────────────────────────────────
+  useEffect(() => {
+    if (!wallet || !walletAddress || trustBalance === null || parseFloat(trustBalance) > 0) return;
+    const interval = setInterval(async () => {
+      try {
+        const bal = await wallet.provider.getBalance(walletAddress);
+        const formatted = wallet.ethers.formatEther(bal);
+        setTrustBalance(formatted);
+      } catch { /* ignore */ }
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [wallet, walletAddress, trustBalance]);
+
+  // ── Wallet handlers ───────────────────────────────────────────
+  async function handleConnect() {
+    setWalletState("connecting");
+    setTxError("");
+    try {
+      const conn = await connectWallet();
+      setWallet(conn);
+      setWalletAddress(conn.address);
+      try { await approveProxy(conn.multiVault); } catch { /* may already be approved */ }
+      const bal = await conn.provider.getBalance(conn.address);
+      setTrustBalance(conn.ethers.formatEther(bal));
+      setWalletState("connected");
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : String(e));
+      setWalletState("idle");
+    }
+  }
+
+  async function handleCreate() {
+    if (!wallet) return;
+    setWalletState("signing");
+    setTxError("");
+    try {
+      setTxStatus("Creating your atom...");
+      const atomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers);
+      const triples = buildProfileTriples(atomId, [...selectedTracks], [...selectedSessions]);
+      if (triples.length === 0) { setTxError("No triples to create."); setWalletState("connected"); return; }
+      setTxStatus(`Publishing ${triples.length} triples...`);
+      const result = await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
+      setTxHash(result.hash);
+      setWalletState("done");
+      setTimeout(() => setStep(7), 1000);
+    } catch (e: unknown) {
+      setTxError(e instanceof Error ? e.message : String(e));
+      setWalletState("connected");
+    }
+  }
+
+  // Sessions matching selected tracks
+  const matchingSessions = useMemo(
+    () => sessions.filter((s) => selectedTracks.has(s.track)).slice(0, 20),
+    [selectedTracks],
+  );
+
+  const selectedSessionObjects = useMemo(
+    () => sessions.filter((s) => selectedSessions.has(s.id)),
+    [selectedSessions],
+  );
+
+  const toggleTrack = (name: string) => {
+    setSelectedTracks((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleSession = (id: string) => {
+    setSelectedSessions((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleComplete = () => {
+    StorageService.saveTopics(selectedTracks);
+    StorageService.saveCart(selectedSessions);
+    navigate("/home");
+  };
+
+  // ── Step 0: Splash ──────────────────────────────────────────
+  if (step === 0) {
+    return (
+      <div style={page}>
+        <SplashBg>
+          <div style={center}>
+            <img
+              src={`${IMG}logo-splash.png`}
+              alt="EthCC Sofia"
+              style={{ width: 160, height: 160, objectFit: "contain", maxWidth: "100%" }}
+            />
+            <h1 style={{ ...heading, fontSize: 44, marginTop: 20, letterSpacing: -1 }}>EthCC[9]</h1>
+            <p style={{ fontSize: 18, color: "rgba(255,255,255,0.9)", fontWeight: 700, marginTop: 6 }}>
+              Sofia Manager
+            </p>
+            <p style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginTop: 6 }}>
+              Cannes &middot; Mar 30 &ndash; Apr 2, 2026
+            </p>
+          </div>
+          <button style={pillBtn} onClick={() => setStep(1)}>
+            Get Started
+          </button>
+        </SplashBg>
+      </div>
+    );
+  }
+
+  // ── Steps 1-3: Slides ───────────────────────────────────────
+  if (step >= 1 && step <= 3) {
+    const slide = SLIDES[step - 1];
+    return (
+      <div style={page}>
+        <SplashBg>
+          <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", minHeight: 0 }}>
+            <img
+              src={slide.image}
+              alt={slide.title}
+              loading="eager"
+              style={{ width: slide.size, maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+            />
+          </div>
+          <div style={{ flexShrink: 0, padding: "0 24px 40px", textAlign: "center" }}>
+            <Dots n={3} a={step - 1} />
+            <h2 style={{ ...heading, fontSize: 28, lineHeight: 1.2, margin: "28px 0 8px", whiteSpace: "pre-line" }}>
+              {slide.title}
+            </h2>
+            <p style={{ ...sub, margin: "0 auto 32px" }}>{slide.subtitle}</p>
+            <button style={{ ...btnPill, background: C.flat }} onClick={() => setStep(step + 1)}>
+              Next
+            </button>
+          </div>
+        </SplashBg>
+      </div>
+    );
+  }
+
+  // ── Step 4: Interest picker ─────────────────────────────────
+  if (step === 4) {
+    return (
+      <div style={page}>
+        <div style={{ flexShrink: 0, padding: "0 20px" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i === 0 ? C.flat : C.surfaceGray }} />
+            ))}
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, margin: "0 0 6px" }}>Choose your interests</h2>
+          <p style={{ fontSize: 14, color: C.textSecondary, margin: "0 0 16px" }}>
+            Published on Intuition Protocol as on-chain triples.
+          </p>
+        </div>
+        <div style={scrollArea}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {trackNames.map((name) => {
+              const ts = getTrackStyle(name);
+              const active = selectedTracks.has(name);
+              return (
+                <button
+                  key={name}
+                  style={{
+                    ...trackPill,
+                    height: 42,
+                    background: active ? ts.color : C.surfaceGray,
+                    borderColor: active ? ts.color : "transparent",
+                    color: active ? "#fff" : C.textSecondary,
+                  }}
+                  onClick={() => toggleTrack(name)}
+                >
+                  <span>{ts.icon}</span>
+                  <span>{name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div style={bottomBar}>
+          <button
+            style={{ ...btnPill, background: C.flat, opacity: selectedTracks.size === 0 ? 0.4 : 1 }}
+            disabled={selectedTracks.size === 0}
+            onClick={() => setStep(5)}
+          >
+            Continue &middot; {selectedTracks.size} selected
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 5: Session picker ──────────────────────────────────
+  if (step === 5) {
+    return (
+      <div style={page}>
+        <div style={{ flexShrink: 0, padding: "0 24px" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 1 ? C.flat : C.surfaceGray }} />
+            ))}
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, margin: "0 0 6px" }}>Add sessions to cart</h2>
+          <p style={{ fontSize: 14, color: C.textSecondary, margin: "0 0 16px" }}>
+            Select sessions you want to attend.
+          </p>
+        </div>
+        <div style={scrollArea}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {matchingSessions.length === 0 && (
+              <p style={{ fontSize: 14, color: C.textTertiary, textAlign: "center", padding: 20 }}>
+                No sessions match your selected tracks.
+              </p>
+            )}
+            {matchingSessions.map((s) => {
+              const ts = getTrackStyle(s.track);
+              const checked = selectedSessions.has(s.id);
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => toggleSession(s.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 12, padding: 14,
+                    borderRadius: R.lg, cursor: "pointer",
+                    background: checked ? `${ts.color}15` : C.surface,
+                    border: `1.5px solid ${checked ? ts.color : C.border}`,
+                  }}
+                >
+                  {/* Color accent bar */}
+                  <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: ts.color, flexShrink: 0 }} />
+                  <div style={{ width: 42, height: 42, borderRadius: 14, background: `${ts.color}25`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                    {ts.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.title}
+                    </div>
+                    <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {s.speakers.length > 0 ? s.speakers[0].name : "TBA"} &middot; {s.startTime}
+                    </div>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: ts.color, marginTop: 2, display: "inline-block" }}>
+                      {s.track}
+                    </span>
+                  </div>
+                  <div style={{
+                    width: 24, height: 24, borderRadius: 12,
+                    border: `2px solid ${checked ? ts.color : C.textTertiary}`,
+                    background: checked ? ts.color : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+                  }}>
+                    {checked && <Ic.Check s={14} c={C.white} />}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div style={bottomBar}>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              style={{ ...btnPill, flex: 1, background: C.surfaceGray, color: C.textPrimary }}
+              onClick={() => setStep(4)}
+            >
+              Back
+            </button>
+            <button style={{ ...btnPill, background: C.flat, flex: 2 }} onClick={() => setStep(6)}>
+              {selectedSessions.size > 0 ? `Review \u00B7 ${selectedSessions.size}` : "Skip"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 6: Review & publish ────────────────────────────────
+  if (step === 6) {
+    const tripleCount = selectedTracks.size + selectedSessions.size;
+    return (
+      <div style={page}>
+        <div style={{ flexShrink: 0, padding: "0 24px" }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 2 ? C.flat : C.surfaceGray }} />
+            ))}
+          </div>
+          <h2 style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, margin: "0 0 6px" }}>Review &amp; publish</h2>
+          <p style={{ fontSize: 14, color: C.textSecondary, margin: "0 0 16px" }}>
+            {walletState === "idle" && "Connect your wallet, then sign to publish on-chain."}
+            {walletState === "connecting" && "Connecting to your wallet..."}
+            {walletState === "connected" && (parseFloat(trustBalance ?? "0") > 0
+              ? "Wallet connected. Ready to publish."
+              : "Scan QR to receive $TRUST, then sign to publish on-chain.")}
+            {walletState === "signing" && (txStatus || "Signing transaction...")}
+            {walletState === "done" && "Published! Redirecting..."}
+          </p>
+        </div>
+        <div style={scrollArea}>
+            {/* Interests */}
+            <div style={{ marginTop: 8 }}>
+              <p style={{ fontSize: 13, color: C.textSecondary, marginBottom: 10 }}>
+                Interests ({selectedTracks.size})
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {[...selectedTracks].map((name) => {
+                  const ts = getTrackStyle(name);
+                  return (
+                    <span
+                      key={name}
+                      style={{
+                        ...trackPill,
+                        background: ts.color,
+                        borderColor: ts.color,
+                        color: "#fff",
+                        cursor: "default",
+                      }}
+                    >
+                      {ts.icon} {name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Sessions */}
+            {selectedSessionObjects.length > 0 && (
+              <div style={{ marginTop: 20 }}>
+                <p style={{ fontSize: 13, color: C.textSecondary, marginBottom: 10 }}>
+                  Sessions ({selectedSessionObjects.length})
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {selectedSessionObjects.map((s) => {
+                    const ts = getTrackStyle(s.track);
+                    return (
+                      <div key={s.id} style={{ ...glassSurface, padding: 12 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                          <span style={{ flexShrink: 0 }}>{ts.icon}</span>
+                          <span style={{ fontSize: 13, fontWeight: 600, color: C.white, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+                            {s.title}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* QR Code — show real QR when connected, placeholder when idle */}
+            {walletState === "connected" || walletState === "signing" || walletState === "done" ? (
+              <div
+                style={{
+                  ...glassSurface,
+                  marginTop: 24,
+                  padding: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <QRCodeSVG value={walletAddress} size={160} bgColor="transparent" fgColor="#ffffff" level="M" />
+                <p style={{ fontSize: 12, color: C.textSecondary, textAlign: "center", fontFamily: "monospace" }}>
+                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                </p>
+                {trustBalance !== null && (
+                  <p style={{ fontSize: 14, fontWeight: 600, color: parseFloat(trustBalance) > 0 ? C.success : C.warning, textAlign: "center" }}>
+                    {parseFloat(trustBalance) > 0
+                      ? `${parseFloat(trustBalance).toFixed(4)} TRUST`
+                      : "Waiting for $TRUST..."}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div
+                style={{
+                  ...glassSurface,
+                  marginTop: 24,
+                  padding: 20,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <div
+                  style={{
+                    width: 120,
+                    height: 120,
+                    borderRadius: R.md,
+                    border: `2px dashed ${C.border}`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: C.textTertiary,
+                    fontSize: 12,
+                  }}
+                >
+                  QR Code
+                </div>
+                <p style={{ fontSize: 12, color: C.textSecondary, textAlign: "center" }}>
+                  Connect wallet to show your address QR
+                </p>
+              </div>
+            )}
+
+            {/* Transaction details */}
+            <div style={{ ...glassSurface, marginTop: 16, padding: 16 }}>
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: C.white,
+                  marginBottom: 8,
+                }}
+              >
+                Transaction Details
+              </p>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>
+                <span>Network</span>
+                <span>Intuition (Chain 1155)</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary, marginBottom: 4 }}>
+                <span>Triples to create</span>
+                <span>{tripleCount}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: C.textSecondary }}>
+                <span>Est. cost</span>
+                <span>{(tripleCount * 0.1).toFixed(1)} TRUST</span>
+              </div>
+            </div>
+
+            {/* Error message */}
+            {txError && (
+              <div style={{ ...glassSurface, marginTop: 16, padding: 14, borderColor: C.error }}>
+                <p style={{ fontSize: 13, color: C.error, margin: 0 }}>{txError}</p>
+              </div>
+            )}
+          </div>
+        <div style={bottomBar}>
+          {walletState === "idle" && (
+            <button style={{ ...btnPill, background: C.flat }} onClick={handleConnect}>
+              Connect Wallet
+            </button>
+          )}
+          {walletState === "connecting" && (
+            <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
+              Connecting...
+            </button>
+          )}
+          {walletState === "connected" && (
+            parseFloat(trustBalance ?? "0") > 0 ? (
+              <button style={{ ...btnPill, background: C.flat }} onClick={handleCreate}>
+                Create Profile ({tripleCount} triples)
+              </button>
+            ) : (
+              <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
+                Waiting for $TRUST...
+              </button>
+            )
+          )}
+          {walletState === "signing" && (
+            <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
+              Signing... {txStatus}
+            </button>
+          )}
+          {walletState === "done" && (
+            <button style={{ ...btnPill, background: C.success }} disabled>
+              Published!
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Step 7: Success ─────────────────────────────────────────
+  if (step === 7) {
+    // Fallback to static VIBES data when no real matches exist
+    const staticVibeMatches = VIBES.filter((v) =>
+      v.shared.some((s) => selectedTracks.has(s)),
+    ).slice(0, 4);
+
+    // Build CBends items from selected tracks
+    const cbendItems = [...selectedTracks].map((name) => ({
+      c: getTrackStyle(name).color,
+      v: 1,
+    }));
+
+    return (
+      <div style={page}>
+        <SplashBg>
+          <div style={center}>
+            <div
+              style={{
+                fontSize: 48,
+                marginBottom: 16,
+                animation: "pop-in 0.5s ease",
+              }}
+            >
+              &#127881;
+            </div>
+            <h1 style={{ ...heading, fontSize: 28 }}>Profile Published!</h1>
+            <p style={{ ...sub, marginTop: 8 }}>
+              Your preferences are now on-chain.
+            </p>
+
+            {/* TX link */}
+            {txHash && (
+              <a
+                href={explorerTxUrl(txHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  marginTop: 12,
+                  fontSize: 13,
+                  color: C.primary,
+                  textDecoration: "none",
+                }}
+              >
+                View transaction &rarr;
+              </a>
+            )}
+
+            {/* Interests with CBends */}
+            <div
+              style={{
+                marginTop: 28,
+                width: "100%",
+                maxWidth: 340,
+                textAlign: "left",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  color: C.textSecondary,
+                  marginBottom: 10,
+                }}
+              >
+                Your Interests
+              </p>
+              {cbendItems.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <CBends items={cbendItems} />
+                </div>
+              )}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {[...selectedTracks].map((name) => {
+                  const ts = getTrackStyle(name);
+                  return (
+                    <span
+                      key={name}
+                      style={{
+                        ...trackPill,
+                        background: ts.color,
+                        borderColor: ts.color,
+                        color: "#fff",
+                        cursor: "default",
+                      }}
+                    >
+                      {ts.icon} {name}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Vibe matches — real data from Intuition GraphQL */}
+            {vibeLoading && (
+              <div style={{ marginTop: 24, width: "100%", maxWidth: 340, textAlign: "left" }}>
+                <p style={{ fontSize: 13, fontWeight: 600, color: C.textSecondary }}>
+                  Searching for your vibe tribe...
+                </p>
+              </div>
+            )}
+
+            {!vibeLoading && vibeMatchesData.length > 0 && (
+              <div
+                style={{
+                  marginTop: 24,
+                  width: "100%",
+                  maxWidth: 340,
+                  textAlign: "left",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.textSecondary,
+                    marginBottom: 10,
+                  }}
+                >
+                  Vibe Matches ({vibeMatchesData.length})
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {vibeMatchesData.slice(0, 6).map((m) => (
+                    <div
+                      key={m.subjectTermId}
+                      style={{
+                        ...glassSurface,
+                        padding: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#0a0a0a",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {m.label.slice(2, 4).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.white,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                            fontFamily: "monospace",
+                          }}
+                        >
+                          {m.label.slice(0, 6)}...{m.label.slice(-4)}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: C.textSecondary,
+                            marginTop: 2,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {m.sharedTopics.join(", ")}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: C.success,
+                        }}
+                      >
+                        {m.matchScore}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Fallback to static vibe matches when no real data */}
+            {!vibeLoading && vibeMatchesData.length === 0 && staticVibeMatches.length > 0 && (
+              <div
+                style={{
+                  marginTop: 24,
+                  width: "100%",
+                  maxWidth: 340,
+                  textAlign: "left",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: C.textSecondary,
+                    marginBottom: 10,
+                  }}
+                >
+                  Vibe Matches
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {staticVibeMatches.map((v, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        ...glassSurface,
+                        padding: 12,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: 18,
+                          background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#0a0a0a",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {v.name.slice(0, 2).toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: C.white,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {v.name}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: C.textSecondary,
+                            marginTop: 2,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {v.shared.join(", ")}
+                        </div>
+                      </div>
+                      <span
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: C.success,
+                        }}
+                      >
+                        {v.pct}%
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <button style={pillBtn} onClick={handleComplete}>
+            Enter the App
+          </button>
+        </SplashBg>
+        <style>{`
+          @keyframes pop-in {
+            0% { transform: scale(0); opacity: 0; }
+            60% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  return null;
+}

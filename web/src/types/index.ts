@@ -92,3 +92,36 @@ export interface Web3TopicsData {
   totalCategories: number;
   categories: Web3Category[];
 }
+
+// ─── Prototype UI types ─────────────────────────────────────────
+
+export interface Vibe {
+  name: string;
+  addr: string;
+  shared: string[];
+  pct: number;
+  online: boolean;
+  dist: string;
+  px?: number;
+  py?: number;
+}
+
+export interface Platform {
+  id: string;
+  name: string;
+  icon: string;
+  color: string;
+  desc: string;
+  score: string;
+}
+
+export interface LeaderboardUser {
+  name: string;
+  addr: string;
+  pnl: string;
+  up: boolean;
+  votes: number;
+  mktCap: string;
+  rank: number;
+  isMe?: boolean;
+}
