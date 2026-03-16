@@ -34,6 +34,7 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }
       .phone-frame {
         width: 100%;
         height: 100dvh;
+        height: -webkit-fill-available;
         background: ${C.background};
         overflow: hidden;
         position: relative;
@@ -41,6 +42,7 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }
         flex-direction: column;
         font-family: ${FONT};
         max-width: 430px;
+        padding-top: env(safe-area-inset-top, 0px);
       }
       @media (min-width: 500px) {
         .phone-frame {
