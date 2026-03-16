@@ -20,7 +20,7 @@ import {
 import type { WalletConnection } from "../services/intuition";
 import { useVibeMatches } from "../hooks/useVibeMatches";
 import { explorerTxUrl } from "../config/constants";
-// Logo image loaded from public/images/logo-splash.png
+// Logo image loaded from public/images/logo-splash.webp
 
 // ─── Image base path (matches Vite base) ───────────────────────
 const IMG = import.meta.env.BASE_URL + "images/";
@@ -28,31 +28,31 @@ const IMG = import.meta.env.BASE_URL + "images/";
 // ─── Slide data ─────────────────────────────────────────────────
 const SLIDES = [
   {
-    image: `${IMG}slide-interests.png`,
+    image: `${IMG}slide-interests.webp`,
     title: "Share what\nyou love",
     subtitle: "Your interests, on-chain.",
     size: 360,
   },
   {
-    image: `${IMG}slide-sessions.png`,
+    image: `${IMG}slide-sessions.webp`,
     title: "Find the best\nsessions",
     subtitle: "83 talks, workshops & panels.",
     size: 360,
   },
   {
-    image: `${IMG}slide-vibes.png`,
+    image: `${IMG}slide-vibes.webp`,
     title: "Meet your\nvibe matches",
     subtitle: "Connect with nearby attendees.",
-    size: 648,
+    size: 842,
   },
 ];
 
 // ─── Preload all slide images on module load ────────────────────
 const ALL_IMAGES = [
-  `${IMG}logo-splash.png`,
-  `${IMG}slide-interests.png`,
-  `${IMG}slide-sessions.png`,
-  `${IMG}slide-vibes.png`,
+  `${IMG}logo-splash.webp`,
+  `${IMG}slide-interests.webp`,
+  `${IMG}slide-sessions.webp`,
+  `${IMG}slide-vibes.webp`,
 ];
 ALL_IMAGES.forEach((src) => {
   const img = new Image();
@@ -192,13 +192,33 @@ export default function OnboardingPage() {
     setWalletState("signing");
     setTxError("");
     try {
+      // Step 1: Ensure user atom exists
       setTxStatus("Creating your atom...");
       const atomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers);
-      const triples = buildProfileTriples(atomId, [...selectedTracks], [...selectedSessions]);
-      if (triples.length === 0) { setTxError("No triples to create."); setWalletState("connected"); return; }
-      setTxStatus(`Publishing ${triples.length} triples...`);
-      const result = await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
-      setTxHash(result.hash);
+
+      let lastHash = "";
+
+      // Step 2: Deposit on track atoms for interests (position-based, no triples)
+      const { TRACK_ATOM_IDS: trackMap, depositOnAtoms } = await import("../services/intuition");
+      const resolvedTrackAtomIds = [...selectedTracks].map((t) => trackMap[t]).filter(Boolean);
+
+      if (resolvedTrackAtomIds.length > 0) {
+        setTxStatus(`Depositing on ${resolvedTrackAtomIds.length} interests...`);
+        const depositResult = await depositOnAtoms(wallet, resolvedTrackAtomIds, undefined, setTxStatus);
+        lastHash = depositResult.hash;
+      }
+
+      // Step 3: Create attending triples for sessions (kept as triples)
+      const sessionTriples = buildProfileTriples(atomId, [], [...selectedSessions]);
+      if (sessionTriples.length > 0) {
+        setTxStatus(`Publishing ${sessionTriples.length} session triples...`);
+        const tripleResult = await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, sessionTriples);
+        lastHash = tripleResult.hash;
+      }
+
+      if (!lastHash) { setTxError("No interests or sessions selected."); setWalletState("connected"); return; }
+
+      setTxHash(lastHash);
       setWalletState("done");
       setTimeout(() => setStep(7), 1000);
     } catch (e: unknown) {
@@ -249,9 +269,9 @@ export default function OnboardingPage() {
         <SplashBg>
           <div style={center}>
             <img
-              src={`${IMG}logo-splash.png`}
+              src={`${IMG}logo-splash.webp`}
               alt="EthCC Sofia"
-              style={{ width: 160, height: 160, objectFit: "contain", maxWidth: "100%" }}
+              style={{ width: 320, height: 320, objectFit: "contain", maxWidth: "100%" }}
             />
             <h1 style={{ ...heading, fontSize: 44, marginTop: 20, letterSpacing: -1 }}>EthCC[9]</h1>
             <p style={{ fontSize: 18, color: "rgba(255,255,255,0.9)", fontWeight: 700, marginTop: 6 }}>
@@ -303,7 +323,7 @@ export default function OnboardingPage() {
     return (
       <div style={page}>
         <div style={{ flexShrink: 0, padding: "0 20px" }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20, marginTop: 16 }}>
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i === 0 ? C.flat : C.surfaceGray }} />
             ))}
@@ -338,13 +358,21 @@ export default function OnboardingPage() {
           </div>
         </div>
         <div style={bottomBar}>
-          <button
-            style={{ ...btnPill, background: C.flat, opacity: selectedTracks.size === 0 ? 0.4 : 1 }}
-            disabled={selectedTracks.size === 0}
-            onClick={() => setStep(5)}
-          >
-            Continue &middot; {selectedTracks.size} selected
-          </button>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button
+              style={{ ...btnPill, flex: 1, background: C.surfaceGray, color: C.textPrimary }}
+              onClick={() => setStep(3)}
+            >
+              Back
+            </button>
+            <button
+              style={{ ...btnPill, background: C.flat, flex: 2, opacity: selectedTracks.size === 0 ? 0.4 : 1 }}
+              disabled={selectedTracks.size === 0}
+              onClick={() => setStep(5)}
+            >
+              Continue &middot; {selectedTracks.size} selected
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -355,7 +383,7 @@ export default function OnboardingPage() {
     return (
       <div style={page}>
         <div style={{ flexShrink: 0, padding: "0 24px" }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20, marginTop: 16 }}>
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 1 ? C.flat : C.surfaceGray }} />
             ))}
@@ -438,7 +466,7 @@ export default function OnboardingPage() {
     return (
       <div style={page}>
         <div style={{ flexShrink: 0, padding: "0 24px" }}>
-          <div style={{ display: "flex", gap: 6, marginBottom: 20 }}>
+          <div style={{ display: "flex", gap: 6, marginBottom: 20, marginTop: 16 }}>
             {[0, 1, 2, 3, 4].map((i) => (
               <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 2 ? C.flat : C.surfaceGray }} />
             ))}
@@ -597,37 +625,47 @@ export default function OnboardingPage() {
             )}
           </div>
         <div style={bottomBar}>
-          {walletState === "idle" && (
-            <button style={{ ...btnPill, background: C.flat }} onClick={handleConnect}>
-              Connect Wallet
-            </button>
-          )}
-          {walletState === "connecting" && (
-            <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
-              Connecting...
-            </button>
-          )}
-          {walletState === "connected" && (
-            parseFloat(trustBalance ?? "0") > 0 ? (
-              <button style={{ ...btnPill, background: C.flat }} onClick={handleCreate}>
-                Create Profile ({tripleCount} triples)
+          <div style={{ display: "flex", gap: 12 }}>
+            {walletState !== "signing" && walletState !== "done" && (
+              <button
+                style={{ ...btnPill, flex: 1, background: C.surfaceGray, color: C.textPrimary }}
+                onClick={() => setStep(5)}
+              >
+                Back
               </button>
-            ) : (
-              <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
-                Waiting for $TRUST...
+            )}
+            {walletState === "idle" && (
+              <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={handleConnect}>
+                Connect Wallet
               </button>
-            )
-          )}
-          {walletState === "signing" && (
-            <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>
-              Signing... {txStatus}
-            </button>
-          )}
-          {walletState === "done" && (
-            <button style={{ ...btnPill, background: C.success }} disabled>
-              Published!
-            </button>
-          )}
+            )}
+            {walletState === "connecting" && (
+              <button style={{ ...btnPill, flex: 2, background: C.flat, opacity: 0.5 }} disabled>
+                Connecting...
+              </button>
+            )}
+            {walletState === "connected" && (
+              parseFloat(trustBalance ?? "0") > 0 ? (
+                <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={handleCreate}>
+                  Publish On-Chain
+                </button>
+              ) : (
+                <button style={{ ...btnPill, flex: 2, background: C.flat, opacity: 0.5 }} disabled>
+                  Waiting for $TRUST...
+                </button>
+              )
+            )}
+            {walletState === "signing" && (
+              <button style={{ ...btnPill, flex: 1, background: C.flat, opacity: 0.5 }} disabled>
+                Signing... {txStatus}
+              </button>
+            )}
+            {walletState === "done" && (
+              <button style={{ ...btnPill, flex: 1, background: C.success }} disabled>
+                Published!
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );

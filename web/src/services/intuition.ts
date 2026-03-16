@@ -273,6 +273,49 @@ export async function createProfileTriples(
   return { hash: tx.hash, blockNumber: receipt.blockNumber };
 }
 
+// ─── Deposit on atoms (position-based, no triple creation) ───────
+
+/**
+ * Deposit $TRUST into atom vaults in batch.
+ * Each atom gets `depositPerAtom` deposited into its vault.
+ * The user receives shares proportional to their deposit.
+ * Used for interests (tracks) and votes (topics) — no triple created.
+ */
+export async function depositOnAtoms(
+  wallet: WalletConnection,
+  atomIds: string[],
+  depositPerAtom?: bigint,
+  onStep?: (step: string) => void
+): Promise<{ hash: string; blockNumber: number }> {
+  if (atomIds.length === 0) throw new Error("No atoms to deposit on.");
+
+  const deposit = depositPerAtom ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+
+  // Calculate total cost via proxy
+  const totalDeposit = deposit * BigInt(atomIds.length);
+  const totalCost: bigint = await wallet.proxy.getTotalDepositCost(totalDeposit);
+
+  onStep?.(`Depositing on ${atomIds.length} atom${atomIds.length > 1 ? "s" : ""}...`);
+
+  const termIds = atomIds;
+  const curveIds = atomIds.map(() => CHAIN_CONFIG.CURVE_ID);
+  const assets = atomIds.map(() => deposit);
+  const minShares = atomIds.map(() => 0n);
+
+  const tx = await wallet.proxy.depositBatch(
+    wallet.address,
+    termIds,
+    curveIds,
+    assets,
+    minShares,
+    { value: totalCost }
+  );
+
+  onStep?.("Waiting for confirmation...");
+  const receipt = await tx.wait();
+  return { hash: tx.hash, blockNumber: receipt.blockNumber };
+}
+
 // ─── Fee estimation (for UI) ─────────────────────────────────────
 
 export interface FeeEstimate {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, type CSSProperties } from "react";
+import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT } from "../config/theme";
 import { categories, allTopics } from "../data/topics";
 import type { Web3Category } from "../types";
@@ -146,6 +147,9 @@ const topicCard: CSSProperties = {
   ...glassSurface,
   margin: "0 16px 10px",
   padding: 14,
+  background: "rgba(22,22,24,0.29)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
 };
 
 const topicIcon: CSSProperties = {
@@ -269,7 +273,8 @@ const perfBadge = (up: boolean): CSSProperties => ({
 type Tab = "trending" | "myvotes" | "discover";
 
 export default function VotePage() {
-  const [tab, setTab] = useState<Tab>("trending");
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>("discover");
   const [userVotes, setUserVotes] = useState<Set<string>>(() => loadVotes());
   const [discoverIdx, setDiscoverIdx] = useState(0);
   const { addToCart, removeFromCart } = useCart();
@@ -358,7 +363,7 @@ export default function VotePage() {
     const inRedeem = redeemState.has(topicId);
 
     if (!supported) {
-      // Support → add to votes + cart
+      // Support → add to cart (on-chain deposit happens at cart validation)
       setUserVotes((prev) => { const next = new Set(prev); next.add(topicId); return next; });
       addToCart(topicId);
     } else if (!inRedeem) {
@@ -443,14 +448,14 @@ export default function VotePage() {
 
       {/* Tabs */}
       <div style={tabRow}>
+        <button style={tabBtn(tab === "discover")} onClick={() => setTab("discover")}>
+          Discover
+        </button>
         <button style={tabBtn(tab === "trending")} onClick={() => setTab("trending")}>
           Trending
         </button>
         <button style={tabBtn(tab === "myvotes")} onClick={() => setTab("myvotes")}>
           My Votes
-        </button>
-        <button style={tabBtn(tab === "discover")} onClick={() => setTab("discover")}>
-          Discover
         </button>
       </div>
 
@@ -521,7 +526,11 @@ export default function VotePage() {
               const perfUp = Math.random() > 0.3;
               const perfPct = (Math.random() * 40 + 2).toFixed(1);
               return (
-                <div key={topic.id} style={portfolioCard}>
+                <div
+                  key={topic.id}
+                  style={{ ...portfolioCard, cursor: "pointer" }}
+                  onClick={() => navigate(`/topic/${topic.id}`)}
+                >
                   <div
                     style={{
                       ...topicIcon,
@@ -544,7 +553,7 @@ export default function VotePage() {
                   </span>
                   <button
                     style={withdrawBtn}
-                    onClick={() => handleVoteClick(topic.id)}
+                    onClick={(e) => { e.stopPropagation(); handleVoteClick(topic.id); }}
                   >
                     Withdraw
                   </button>
@@ -573,75 +582,74 @@ export default function VotePage() {
               const trend = realChartData.get(topic.id) ?? trendDataMap.get(topic.id) ?? [];
               return (
                 <>
-                  <div style={discoverCard}>
-                    <div
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: R.lg,
-                        background: cat ? `${cat.color}22` : C.primaryLight,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 28,
-                      }}
-                    >
+                  <div style={{
+                    ...glassSurface, margin: "0 16px", padding: "28px 20px",
+                    background: "rgba(22,22,24,0.85)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
+                    minHeight: 280,
+                  }}>
+                    {/* Icon */}
+                    <div style={{
+                      width: 56, height: 56, borderRadius: R.lg,
+                      background: cat ? `${cat.color}22` : C.primaryLight,
+                      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28,
+                    }}>
                       {getIconEmoji(cat?.icon ?? "")}
                     </div>
-                    <div
-                      style={{
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: cat?.color ?? C.primary,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      {cat?.name ?? "Other"}
+
+                    {/* Topic name */}
+                    <div style={{ fontSize: 22, fontWeight: 700, color: C.textPrimary, textAlign: "center", lineHeight: 1.3 }}>
+                      {topic.name}
                     </div>
-                    <div style={discoverName}>{topic.name}</div>
-                    <div
-                      style={{
-                        padding: "4px 12px",
-                        borderRadius: R.btn,
-                        background: "rgba(255,255,255,0.08)",
-                        fontSize: 11,
-                        color: C.textSecondary,
-                      }}
-                    >
+
+                    {/* Type badge */}
+                    <div style={{
+                      padding: "4px 12px", borderRadius: R.btn,
+                      background: "rgba(255,255,255,0.08)", fontSize: 11, color: C.textSecondary,
+                    }}>
                       {topic.type}
                     </div>
-                    <div style={{ ...discoverDesc, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" as const }}>{topic.description}</div>
-                    <Spark
-                      data={trend}
-                      color={cat?.color ?? C.primary}
-                      h={32}
-                    />
+
+                    {/* Description */}
+                    <div style={{
+                      fontSize: 13, color: C.textSecondary, lineHeight: 1.5,
+                      textAlign: "center", maxWidth: "100%", padding: "0 8px",
+                      overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical" as const,
+                    }}>
+                      {topic.description}
+                    </div>
+
+                    {/* Sparkline */}
+                    <div style={{ width: "100%", marginTop: 4 }}>
+                      <Spark data={trend} color={cat?.color ?? C.primary} h={32} />
+                    </div>
                   </div>
+
+                  {/* 2 buttons */}
                   <div style={discoverActions}>
                     <button
                       onClick={handleSkip}
                       style={{
-                        flex: 1, height: 48, borderRadius: R.btn,
-                        background: C.errorLight, color: C.error,
-                        fontSize: 15, fontWeight: 600, border: "none",
+                        flex: 1, height: 56, borderRadius: R.btn,
+                        background: C.surfaceGray, color: C.textSecondary,
+                        fontSize: 16, fontWeight: 600, border: "none",
                         cursor: "pointer", display: "flex", alignItems: "center",
                         justifyContent: "center", gap: 8, fontFamily: FONT,
                       }}
                     >
-                      &#10005; Skip
+                      Skip
                     </button>
                     <button
                       onClick={handleSupport}
                       style={{
-                        flex: 1, height: 48, borderRadius: R.btn,
+                        flex: 1, height: 56, borderRadius: R.btn,
                         background: "#D790C7", color: "#0a0a0a",
-                        fontSize: 15, fontWeight: 600, border: "none",
+                        fontSize: 16, fontWeight: 600, border: "none",
                         cursor: "pointer", display: "flex", alignItems: "center",
                         justifyContent: "center", gap: 8, fontFamily: FONT,
                       }}
                     >
-                      &#9829; Support
+                      Support
                     </button>
                   </div>
                 </>

@@ -148,16 +148,28 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { cart, toggleCart } = useCart();
 
-  const [walletAddress] = useState<string>(() =>
+  const [walletAddress, setWalletAddress] = useState<string>(() =>
     localStorage.getItem("ethcc-wallet-address") ?? ""
   );
   const [trustBalance, setTrustBalance] = useState<string>("0.000");
 
+  // Re-check localStorage when page becomes visible (coming back from BuyTrust, etc.)
+  useEffect(() => {
+    const handleFocus = () => {
+      const saved = localStorage.getItem("ethcc-wallet-address") ?? "";
+      setWalletAddress(saved);
+    };
+    window.addEventListener("focus", handleFocus);
+    // Also check on mount in case navigated back via router
+    handleFocus();
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   // Try to fetch balance if we have an address
   useEffect(() => {
-    if (!walletAddress || !window.ethereum) return;
+    if (!walletAddress) return;
     import("ethers").then(({ ethers }) => {
-      const provider = new ethers.BrowserProvider(window.ethereum!);
+      const provider = new ethers.JsonRpcProvider("https://rpc.intuition.systems/http");
       provider
         .getBalance(walletAddress)
         .then((bal) => {
@@ -223,7 +235,7 @@ export default function HomePage() {
         </button>
         <button style={actionCircle} onClick={() => navigate("/invite")}>
           <div style={{ ...circleIcon, background: "#cea2fd" }}>
-            <Ic.MapPin s={22} c="#0a0a0a" />
+            <Ic.Share s={22} c="#0a0a0a" />
           </div>
           <span style={{ fontSize: 13, fontWeight: 500, color: C.textPrimary }}>Invite</span>
         </button>

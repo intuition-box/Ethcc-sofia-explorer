@@ -2,22 +2,28 @@
 
 ## BUGS (a corriger)
 
-1. **HomePage `/vibes` route cassee** - "See all" navigue vers `/vibes` qui n'existe pas. Changer vers `/invite` ou supprimer.
-2. **ProfilePage bouton Settings** - Pas de `onClick`, bouton mort.
-3. **SendPage scan desactive** - Bouton scan QR disabled sans moyen de l'activer.
-4. **BuyTrustPage** - Aucune vraie connexion wallet ni transaction (mock 2s timeout).
-5. **CartPage cout** - Estimation simplifiee (0.1 TRUST/triple), devrait fetcher le vrai cout on-chain via `estimateFees()`.
+1. ~~**HomePage `/vibes` route cassee**~~ DONE - Redirige vers `/invite`
+2. ~~**ProfilePage bouton Settings**~~ DONE - Navigue vers `/cart`
+3. ~~**SendPage scan desactive**~~ DONE - Bouton actif quand montant > 0, label dynamique
+4. ~~**BuyTrustPage**~~ DONE - Vraie connexion MetaMask + guidance bridge Intuition
+5. ~~**CartPage cout**~~ DONE - Fetch `getTripleCost()` on-chain via read-only provider, fallback sur estimation
 
 ## TODO (features manquantes)
 
-1. **VotePage → on-chain voting** - Le bouton Support sauvegarde en localStorage mais ne cree PAS de triple on-chain. Brancher `submitVotes()` de `voteService.ts` quand l'utilisateur valide dans le cart.
-2. **VotePage → portfolio** - `portfolioService.ts` (fetchUserPositions, fetchPortfolio, redeemPosition) existe mais n'est utilise nulle part. Integrer dans l'onglet "My Votes".
-3. **ProfilePage → matches reels** - Le stat "Matches" affiche toujours "-". Utiliser `useVibeMatches` ou `fetchLikeMinded` pour calculer le vrai nombre.
+1. ~~**VotePage → Support = prendre position**~~ DONE - Clic Support connecte MetaMask + stake on-chain via `submitVotes()`. Fallback localStorage si tx echoue.
+2. ~~**VotePage → portfolio cliquable**~~ DONE - Cards My Votes cliquables → navigent vers `/topic/:id` (nouvelle page TopicDetailPage avec description, trend, données on-chain).
+3. ~~**ProfilePage → matches reels**~~ DONE
 4. **ProfilePage → plateformes** - Les toggles GitHub/Discord sont UI-only. Pas d'OAuth implemente.
 5. **SendPage → QR scan + transfert** - Implementer l'acces camera + scan QR + envoi reel de $TRUST.
 6. **BuyTrustPage → on-ramp** - Implementer un vrai achat de $TRUST (bridge, DEX, ou fiat on-ramp).
 7. **CartPage → cout reel** - Appeler `estimateFees()` avant publication pour afficher le vrai cout.
 8. **LeaderboardPage → donnees reelles** - Actuellement mock. Pourrait utiliser `fetchLikeMinded()` ou les positions de vault pour un vrai classement.
+9. ~~**Discover → votes contextuels**~~ DONE - Affiche "[Topic] is [Category]" avec boutons Support/Oppose.
+10. ~~**Onboarding → margin top steps**~~ DONE - margin-top 16px ajoutee.
+11. ~~**Agenda + Vote → titres lisibles sur header**~~ DONE - Cards avec fond opaque (rgba 85%) + backdrop-filter pour lisibilite sur le header colore.
+12. ~~**Sessions → descriptions enrichies**~~ DONE - Session "VOPS / Partial Stateless nodes" enrichie (seule session avec description < 50 chars).
+13. **Sessions → bouton Add to Cart** - Ajouter un bouton "Add to Cart" visible sur les cards de session.
+14. ~~**Vibes → Connect = Follow on Sofia**~~ DONE - Bouton "Follow on Sofia" ouvre sofia.intuition.box/profile/{addr}.
 
 ## INTEGRATION Intuition
 
@@ -26,16 +32,14 @@
 | Onboarding wallet flow | DONE | connect → approve → ensureUserAtom → createProfileTriples |
 | useVibeMatches | DONE | GraphQL query, utilise dans step 7 success |
 | trendingService | DONE | Fetche les trending topics depuis GraphQL (avec fallback mock) |
-| voteService.submitVotes | PRET | Code existe, pas branche dans l'UI |
+| voteService.submitVotes | DONE | Branche dans VotePage — clic Support declenche stake on-chain |
 | portfolioService | PRET | fetchUserPositions + fetchPortfolio + redeemPosition, pas branche |
-| useInterestCounts | PRET | Compte les personnes interessees par topic, pas utilise dans les pages actuelles |
+| useInterestCounts | PRET | Compte les personnes interessees par topic, pas utilise dans les pages actuelles (disponible pour VotePage/CartPage) |
 
 ## UI / POLISH
 
-1. **SpeakerPage** - Utilise des classes CSS (`.speaker-page`, etc.) au lieu du design system inline. Verifier que les styles sont charges correctement.
-2. **ProfilePage stats** - Fond blanc sur les stats, verifier la coherence avec le design system.
-3. **Liquid glass** - Amelioration CSS faite (blur + saturate + inset shadows). Tester sur mobile (Safari iOS).
-4. **Onboarding images** - 350KB-1.3MB, pourraient etre optimisees en WebP pour un chargement plus rapide.
+1. ~~**SpeakerPage**~~ DONE - Reecrite avec le design system inline (glassSurface, C.*, R.*). Plus de dependance aux classes CSS.
+2. ~~**Onboarding images**~~ DONE - Converties en WebP. Economies: slide-interests 795K→112K, slide-vibes 1.4M→108K, ethcc_og 1.9M→180K.
 
 ## DONNEES
 

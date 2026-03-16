@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
 import { GQL_URL } from "../config/constants";
-import { TRACK_ATOM_IDS, PREDICATES } from "../services/intuition";
+import { TRACK_ATOM_IDS } from "../services/intuition";
 
+/**
+ * Count how many users have deposited (taken a position) on each track atom.
+ * Position-based: reads vault positions instead of triples.
+ */
 export function useInterestCounts(topics: Set<string>): Record<string, number> {
   const [interestCounts, setInterestCounts] = useState<Record<string, number>>({});
 
@@ -14,9 +18,9 @@ export function useInterestCounts(topics: Set<string>): Record<string, number> {
 
     const query = `{
       ${trackIds.map((id, i) => `
-        t${i}: triples_aggregate(where: {
-          predicate: { term_id: { _eq: "${PREDICATES["are interested by"]}" } }
-          object: { term_id: { _eq: "${id}" } }
+        p${i}: positions_aggregate(where: {
+          atom: { term_id: { _eq: "${id}" } }
+          shares: { _gt: "0" }
         }) { aggregate { count } }
       `).join("")}
     }`;
@@ -31,7 +35,7 @@ export function useInterestCounts(topics: Set<string>): Record<string, number> {
         const counts: Record<string, number> = {};
         const topicList = [...topics];
         trackIds.forEach((id, i) => {
-          const c = res.data?.[`t${i}`]?.aggregate?.count ?? 0;
+          const c = res.data?.[`p${i}`]?.aggregate?.count ?? 0;
           const name = topicList.find((t) => TRACK_ATOM_IDS[t] === id);
           if (name) counts[name] = c;
         });

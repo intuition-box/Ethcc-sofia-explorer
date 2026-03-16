@@ -388,10 +388,20 @@ export default function SendPage() {
 
           {/* Send Button */}
           <button
-            style={{ ...sendBtn, opacity: 0.5, cursor: "not-allowed" }}
-            disabled
+            style={{
+              ...sendBtn,
+              ...(parseFloat(amount || "0") <= 0
+                ? { opacity: 0.5, cursor: "not-allowed" }
+                : {}),
+            }}
+            disabled={parseFloat(amount || "0") <= 0}
+            onClick={() => {
+              if (parseFloat(amount || "0") > 0) {
+                alert(`Ready to scan QR and send ${amount} TRUST.\nCamera access required — not yet implemented on this device.`);
+              }
+            }}
           >
-            Scan QR to Send
+            {parseFloat(amount || "0") > 0 ? `Send ${amount} TRUST` : "Enter amount to send"}
           </button>
         </>
       )}

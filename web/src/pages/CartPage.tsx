@@ -6,6 +6,7 @@ import { allTopics, categories } from "../data/topics";
 import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
 import { StorageService } from "../services/StorageService";
+import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
 
 // ─── Icon mapping (same as VotePage) ────────────────
 const ICON_EMOJI: Record<string, string> = {
@@ -105,6 +106,31 @@ export default function CartPage() {
 
   const tripleCount = topicList.length + cartSessions.length + cartTopics.length;
   const isEmpty = tripleCount === 0;
+
+  // Fetch real on-chain triple cost via read-only provider
+  const [realCost, setRealCost] = useState<string | null>(null);
+  useEffect(() => {
+    if (tripleCount === 0) { setRealCost(null); return; }
+    let cancelled = false;
+    import("ethers").then(({ ethers }) => {
+      const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const mv = new ethers.Contract(
+        CHAIN_CONFIG.MULTIVAULT,
+        ["function getTripleCost() view returns (uint256)"],
+        provider
+      );
+      return mv.getTripleCost().then((tripleCost: bigint) => {
+        if (cancelled) return;
+        const deposit = BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+        const total = (tripleCost + deposit) * BigInt(tripleCount);
+        const trustAmount = Number(total) / 1e18;
+        setRealCost(trustAmount < 0.01 ? trustAmount.toFixed(4) : trustAmount.toFixed(2));
+      });
+    }).catch(() => {
+      if (!cancelled) setRealCost(null); // fallback to estimate
+    });
+    return () => { cancelled = true; };
+  }, [tripleCount]);
 
   return (
     <div style={page}>
@@ -258,7 +284,9 @@ export default function CartPage() {
             </div>
             <div style={{ ...summaryRow, borderBottom: "none" }}>
               <span>Estimated cost</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: C.trust }}>~{(tripleCount * 0.1).toFixed(1)} TRUST</span>
+              <span style={{ fontSize: 15, fontWeight: 800, color: C.trust }}>
+                {realCost ? `~${realCost} TRUST` : `~${(tripleCount * 0.1).toFixed(1)} TRUST`}
+              </span>
             </div>
           </div>
         )}

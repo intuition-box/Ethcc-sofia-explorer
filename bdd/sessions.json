@@ -1130,7 +1130,7 @@
       "stageId": "hepburn-stage",
       "track": "EthStaker",
       "type": "Talk",
-      "description": "VOPS / Partial Stateless nodes",
+      "description": "Exploring Verkle-Optimized Partial Sync (VOPS) and partial stateless node designs to reduce Ethereum validator hardware requirements while maintaining full verification capabilities. Learn how these approaches can lower the barrier to solo staking and improve network decentralization.",
       "speakers": [],
       "tags": [
         "Infrastructure & Outils développeurs",

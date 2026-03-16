@@ -11,8 +11,9 @@ export interface VibeMatch {
 }
 
 /**
- * Query Intuition GraphQL for other users who share the same
- * "are interested by" topics and "attending" sessions.
+ * Find other users who share interests and sessions.
+ * - Interests: read positions on track atom vaults (position-based)
+ * - Sessions: read "attending" triples (triple-based, kept as-is)
  */
 export function useVibeMatches(
   topics: Set<string>,
@@ -23,12 +24,10 @@ export function useVibeMatches(
   const [loading, setLoading] = useState(false);
   const fetchedRef = useRef(false);
 
-  // Stabilize deps - only fetch once when wallet address is set
   const topicsKey = [...topics].sort().join(",");
   const sessionsKey = sessionIds.sort().join(",");
 
   useEffect(() => {
-    // Only fetch once per unique combination
     if (fetchedRef.current) return;
 
     const trackIds = [...topics].map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
@@ -37,20 +36,20 @@ export function useVibeMatches(
     if ((trackIds.length === 0 && sessAtomIds.length === 0) || !walletAddress) return;
 
     fetchedRef.current = true;
-
     setLoading(true);
 
-    // Build batched aliases: topics as t0..tN, sessions as s0..sM
-    const topicAliases = trackIds
+    // Query positions on track atoms (interests = who deposited on this atom)
+    const positionAliases = trackIds
       .map(
         (id, i) => `
-        t${i}: triples(where: {
-          predicate: { term_id: { _eq: "${PREDICATES["are interested by"]}" } }
-          object: { term_id: { _eq: "${id}" } }
-        }) { subject { term_id label } }`
+        p${i}: positions(where: {
+          atom: { term_id: { _eq: "${id}" } }
+          shares: { _gt: "0" }
+        }) { account { id } shares }`
       )
       .join("");
 
+    // Query attending triples (sessions = kept as triples)
     const sessionAliases = sessAtomIds
       .map(
         (id, i) => `
@@ -61,7 +60,7 @@ export function useVibeMatches(
       )
       .join("");
 
-    const query = `{ ${topicAliases} ${sessionAliases} }`;
+    const query = `{ ${positionAliases} ${sessionAliases} }`;
 
     fetch(GQL_URL, {
       method: "POST",
@@ -72,31 +71,33 @@ export function useVibeMatches(
       .then((res) => {
         const data = res.data ?? {};
         const topicList = [...topics];
+        const addr = walletAddress.toLowerCase();
 
-        // Accumulate per-user: shared topics + shared sessions
         const userMap = new Map<
           string,
           { label: string; topics: Set<string>; sessions: Set<string> }
         >();
 
-        function ensureUser(termId: string, label: string) {
-          if (!userMap.has(termId)) {
-            userMap.set(termId, { label, topics: new Set(), sessions: new Set() });
+        function ensureUser(id: string, label: string) {
+          if (!userMap.has(id)) {
+            userMap.set(id, { label, topics: new Set(), sessions: new Set() });
           }
-          return userMap.get(termId)!;
+          return userMap.get(id)!;
         }
 
-        // Process topic triples
+        // Process positions on track atoms (interests)
         trackIds.forEach((id, i) => {
-          const triples = data[`t${i}`] ?? [];
+          const positions = data[`p${i}`] ?? [];
           const topicName = topicList.find((t) => TRACK_ATOM_IDS[t] === id) ?? "";
-          for (const triple of triples) {
-            const u = ensureUser(triple.subject.term_id, triple.subject.label);
+          for (const pos of positions) {
+            const accountId = pos.account?.id ?? "";
+            if (!accountId) continue;
+            const u = ensureUser(accountId.toLowerCase(), accountId);
             u.topics.add(topicName);
           }
         });
 
-        // Process session triples
+        // Process attending triples (sessions)
         sessAtomIds.forEach((id, i) => {
           const triples = data[`s${i}`] ?? [];
           const sessId = sessionIds.find((sid) => SESSION_ATOM_IDS[sid] === id) ?? "";
@@ -107,13 +108,11 @@ export function useVibeMatches(
         });
 
         // Convert to array, exclude current user, sort by score
-        const addr = walletAddress.toLowerCase();
         const result: VibeMatch[] = [];
-
-        for (const [termId, info] of userMap) {
+        for (const [id, info] of userMap) {
           if (info.label.toLowerCase() === addr) continue;
           result.push({
-            subjectTermId: termId,
+            subjectTermId: id,
             label: info.label,
             sharedTopics: [...info.topics],
             sharedSessions: [...info.sessions],

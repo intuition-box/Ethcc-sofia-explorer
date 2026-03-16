@@ -1,10 +1,11 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT } from "../config/theme";
-import { VIBES, PLATFORMS } from "../data/social";
+import { PLATFORMS } from "../data/social";
 
 import { Ic } from "../components/ui/Icons";
 import { StorageService } from "../services/StorageService";
+import { useVibeMatches } from "../hooks/useVibeMatches";
 
 // ─── Styles ──────────────────────────────────────────
 
@@ -16,14 +17,6 @@ const page: CSSProperties = {
   color: C.textPrimary,
   fontFamily: FONT,
   overflow: "hidden",
-};
-
-const header: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  padding: "12px 16px 0",
-  flexShrink: 0,
 };
 
 const settingsBtn: CSSProperties = {
@@ -38,77 +31,6 @@ const settingsBtn: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-};
-
-const avatarWrap: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  padding: "24px 16px 16px",
-};
-
-const avatar: CSSProperties = {
-  width: 80,
-  height: 80,
-  borderRadius: 40,
-  background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 28,
-  fontWeight: 700,
-  color: C.dark,
-};
-
-const userName: CSSProperties = {
-  fontSize: 20,
-  fontWeight: 700,
-  marginTop: 12,
-};
-
-const userAddr: CSSProperties = {
-  fontSize: 12,
-  color: C.textSecondary,
-  marginTop: 4,
-};
-
-const chainBadge: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  padding: "4px 10px",
-  borderRadius: R.btn,
-  background: C.successLight,
-  color: C.success,
-  fontSize: 11,
-  fontWeight: 600,
-  marginTop: 8,
-};
-
-const statsRow: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-around",
-  padding: "16px",
-  margin: "0 16px",
-  ...glassSurface,
-  background: "#fff",
-};
-
-const statItem: CSSProperties = {
-  textAlign: "center" as const,
-  flex: 1,
-};
-
-const statVal: CSSProperties = {
-  fontSize: 20,
-  fontWeight: 700,
-  color: "#0a0a0a",
-};
-
-const statLabel: CSSProperties = {
-  fontSize: 11,
-  color: "rgba(10,10,10,0.6)",
-  marginTop: 2,
 };
 
 const inviteBtn: CSSProperties = {
@@ -135,44 +57,6 @@ const sectionTitle: CSSProperties = {
   fontWeight: 700,
   padding: "20px 16px 10px",
   color: C.textPrimary,
-};
-
-const vibeCard: CSSProperties = {
-  ...glassSurface,
-  padding: "12px 16px",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  cursor: "pointer",
-};
-
-const vibeAvatar: CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: 20,
-  background: "rgba(206,162,253,0.2)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 14,
-  fontWeight: 700,
-  color: C.primary,
-  flexShrink: 0,
-};
-
-const vibeName: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-};
-
-const vibePct: CSSProperties = {
-  fontSize: 13,
-  fontWeight: 700,
-  color: C.success,
-  marginLeft: "auto",
 };
 
 const platformRow: CSSProperties = {
@@ -239,26 +123,6 @@ const toggleKnob = (on: boolean): CSSProperties => ({
   transition: "left 0.2s",
 });
 
-const footerRow: CSSProperties = {
-  ...glassSurface,
-  margin: "0 16px 8px",
-  padding: "14px 16px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "space-between",
-  cursor: "pointer",
-};
-
-const footerLabel: CSSProperties = {
-  fontSize: 14,
-  color: C.textPrimary,
-};
-
-const footerValue: CSSProperties = {
-  fontSize: 12,
-  color: C.textSecondary,
-};
-
 // ─── Component ───────────────────────────────────────
 
 export default function ProfilePage() {
@@ -268,13 +132,6 @@ export default function ProfilePage() {
   );
 
   const walletAddress = localStorage.getItem("ethcc-wallet-address") ?? "";
-  const shortAddr = walletAddress
-    ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
-    : "Not connected";
-  const initials = walletAddress
-    ? walletAddress.slice(2, 4).toUpperCase()
-    : "??";
-
   const savedTopics = useMemo(() => StorageService.loadTopics(), []);
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
   const savedCart = useMemo(() => StorageService.loadCart(), []);
@@ -296,47 +153,52 @@ export default function ProfilePage() {
     });
   };
 
-  const topVibes = VIBES.slice(0, 4);
+  // Real vibe matches from on-chain data
+  const cartSessionIds = useMemo(() => [...savedCart].map(String), [savedCart]);
+  const { matches: realMatches, loading: matchesLoading } = useVibeMatches(
+    savedTopics,
+    cartSessionIds,
+    walletAddress
+  );
+
+  const matchCount = realMatches.length > 0 ? realMatches.length : (walletAddress ? 0 : null);
 
   return (
     <div style={page}>
-      {/* Header */}
-      <div style={{ ...header, justifyContent: "flex-end" }}>
-        <button style={settingsBtn}>
-          <Ic.Settings s={18} />
-        </button>
-      </div>
+      {/* Fixed color background */}
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200, background: "#fff", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, zIndex: 0 }} />
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24 }}>
-      {/* Avatar + Info */}
-      <div style={avatarWrap}>
-        <div style={avatar}>{initials}</div>
-        <div style={userName}>{walletAddress ? shortAddr : "Anonymous"}</div>
-        <div style={userAddr}>{walletAddress || "No wallet connected"}</div>
-        <div style={chainBadge}>
-          <span style={{ fontSize: 8 }}>&#9679;</span>{" "}
-          {walletAddress ? "On-Chain" : "Off-Chain"}
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24, position: "relative", zIndex: 1 }}>
+      {/* Hero — same layout as VotePage */}
+      <div style={{ background: "transparent", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, padding: "0 0 24px", color: "#0a0a0a", overflow: "hidden", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "12px 20px 0" }}>
+          <div style={{ fontSize: 60, fontWeight: 900, lineHeight: 1 }}>
+            {walletAddress ? (
+              <>{walletAddress.slice(0, 6)}...<br/>{walletAddress.slice(-4)}</>
+            ) : "Profile"}
+          </div>
+          <button style={{ ...settingsBtn, background: "rgba(0,0,0,0.1)", flexShrink: 0, marginTop: 4 }} onClick={() => navigate("/settings")}>
+            <Ic.Settings s={18} c="#0a0a0a" />
+          </button>
         </div>
-      </div>
-
-      {/* Stats */}
-      <div style={statsRow}>
-        <div style={statItem}>
-          <div style={statVal}>{topicNames.length || "-"}</div>
-          <div style={statLabel}>Interests</div>
-        </div>
-        <div style={statItem}>
-          <div style={statVal}>{savedCart.size || "-"}</div>
-          <div style={statLabel}>Sessions</div>
-        </div>
-        <div style={statItem}>
-          <div style={statVal}>{voteCount || "-"}</div>
-          <div style={statLabel}>Votes</div>
-        </div>
-        <div style={statItem}>
-          <div style={statVal}>-</div>
-          <div style={statLabel}>Matches</div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12, padding: "0 20px" }}>
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{topicNames.length || "-"}</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Interests</div>
+          </div>
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{savedCart.size || "-"}</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Sessions</div>
+          </div>
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{voteCount || "-"}</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Votes</div>
+          </div>
+          <div style={{ flex: 1, textAlign: "center" }}>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{matchesLoading ? "..." : (matchCount ?? "-")}</div>
+            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Matches</div>
+          </div>
         </div>
       </div>
 
@@ -344,30 +206,6 @@ export default function ProfilePage() {
       <button style={inviteBtn} onClick={() => navigate("/invite")}>
         Invite Nearby Participants
       </button>
-
-      {/* Vibe Matches */}
-      <div style={sectionTitle}>Vibe Matches</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 16px 16px" }}>
-        {topVibes.map((vibe, idx) => (
-          <div
-            key={vibe.name}
-            style={vibeCard}
-            onClick={() => navigate(`/vibe/${idx}`)}
-          >
-            <div style={vibeAvatar}>
-              {vibe.name.slice(0, 2).toUpperCase()}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={vibeName}>{vibe.name}</div>
-              <div style={{ fontSize: 11, color: C.textSecondary, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                {vibe.shared.slice(0, 2).join(", ")}
-              </div>
-            </div>
-            <div style={vibePct}>{vibe.pct}%</div>
-            <div style={{ color: C.textTertiary, fontSize: 16 }}>&#8250;</div>
-          </div>
-        ))}
-      </div>
 
       {/* Connected Platforms */}
       <div style={sectionTitle}>Connected Platforms</div>
@@ -393,24 +231,6 @@ export default function ProfilePage() {
         );
       })}
 
-      {/* Footer Info */}
-      <div style={{ ...sectionTitle, marginTop: 8 }}>Account</div>
-      <div style={footerRow}>
-        <span style={footerLabel}>Wallet</span>
-        <span style={footerValue}>{shortAddr}</span>
-      </div>
-      <div style={footerRow}>
-        <span style={footerLabel}>Balance</span>
-        <span style={footerValue}>{walletAddress ? "—" : "—"} TRUST</span>
-      </div>
-      <div style={footerRow}>
-        <span style={footerLabel}>TX History</span>
-        <span style={footerValue}>15 transactions</span>
-      </div>
-      <div style={footerRow}>
-        <span style={footerLabel}>About EthCC</span>
-        <span style={{ ...footerValue, color: C.primary }}>ethcc.io</span>
-      </div>
       </div>
     </div>
   );

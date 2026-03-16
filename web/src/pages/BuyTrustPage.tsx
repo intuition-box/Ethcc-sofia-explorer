@@ -1,6 +1,8 @@
-import { useState, type CSSProperties } from "react";
+import { useState, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, btnPill, FONT } from "../config/theme";
+import { connectWallet } from "../services/intuition";
+import type { WalletConnection } from "../services/intuition";
 
 
 // ─── Styles ──────────────────────────────────────────
@@ -194,6 +196,8 @@ const summaryValue: CSSProperties = {
 const buyBtn = (processing: boolean): CSSProperties => ({
   ...btnPill,
   margin: "0 16px",
+  width: "calc(100% - 32px)",
+  boxSizing: "border-box" as const,
   opacity: processing ? 0.7 : 1,
   cursor: processing ? "not-allowed" : "pointer",
 });
@@ -229,8 +233,16 @@ export default function BuyTrustPage() {
   const [amount, setAmount] = useState("25");
   const [activePreset, setActivePreset] = useState<string | null>("25");
   const [walletConnected, setWalletConnected] = useState(false);
+  const [wallet, setWallet] = useState<WalletConnection | null>(null);
+  const [walletAddr, setWalletAddr] = useState("");
   const [processing, setProcessing] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Check if already connected
+  useEffect(() => {
+    const saved = localStorage.getItem("ethcc-wallet-address");
+    if (saved) { setWalletConnected(true); setWalletAddr(saved); }
+  }, []);
 
   const presets = ["10", "25", "50", "100", "250"];
 
@@ -246,10 +258,30 @@ export default function BuyTrustPage() {
   const handleBuy = async () => {
     if (!walletConnected || numAmount <= 0) return;
     setProcessing(true);
-    // Simulate processing
-    await new Promise((r) => setTimeout(r, 2000));
-    setProcessing(false);
-    setSuccess(true);
+    try {
+      // Ensure wallet is connected
+      let w = wallet;
+      if (!w) {
+        w = await connectWallet();
+        setWallet(w);
+        setWalletAddr(w.address);
+        localStorage.setItem("ethcc-wallet-address", w.address);
+      }
+      const addr = w.address;
+      // $TRUST is the native token — buying means bridging/swapping, not a simple tx
+      alert(
+        `To acquire ${amount} TRUST:\n\n` +
+        `1. Bridge ETH to Intuition L3 (Chain 1155)\n` +
+        `2. Use the Intuition bridge at https://app.intuition.systems\n\n` +
+        `Connected wallet: ${addr.slice(0, 6)}...${addr.slice(-4)}`
+      );
+      setSuccess(true);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Transaction failed";
+      alert(`Error: ${msg}`);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   if (success) {
@@ -355,15 +387,25 @@ export default function BuyTrustPage() {
         <button
           style={{
             ...metamaskBtn,
-            borderColor: walletConnected ? C.success : C.border,
+            ...(walletConnected ? { background: C.flat, borderColor: C.flat, color: "#0a0a0a" } : {}),
           }}
-          onClick={() => setWalletConnected(!walletConnected)}
+          onClick={async () => {
+            if (walletConnected) { setWalletConnected(false); setWallet(null); return; }
+            try {
+              const w = await connectWallet();
+              setWallet(w);
+              setWalletAddr(w.address);
+              setWalletConnected(true);
+              localStorage.setItem("ethcc-wallet-address", w.address);
+            } catch { /* user rejected */ }
+          }}
         >
-          <span style={{ fontSize: 20 }}>&#129418;</span>
           {walletConnected ? (
-            <span style={{ color: C.success }}>MetaMask Connected</span>
+            <span style={{ color: "#0a0a0a", fontWeight: 600 }}>
+              {walletAddr ? `${walletAddr.slice(0, 6)}...${walletAddr.slice(-4)}` : "Connected"}
+            </span>
           ) : (
-            "Connect MetaMask"
+            "Connect Wallet"
           )}
         </button>
       </div>

@@ -18,6 +18,9 @@ import BuyTrustPage from "./pages/BuyTrustPage";
 import LeaderboardPage from "./pages/LeaderboardPage";
 import InvitePage from "./pages/InvitePage";
 import VibeProfilePage from "./pages/VibeProfilePage";
+import VibesListPage from "./pages/VibesListPage";
+import SettingsPage from "./pages/SettingsPage";
+import TopicDetailPage from "./pages/TopicDetailPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -37,13 +40,16 @@ createRoot(document.getElementById("root")!).render(
 
             {/* Detail pages */}
             <Route path="/session/:id" element={<SessionDetailPage />} />
+            <Route path="/topic/:id" element={<TopicDetailPage />} />
             <Route path="/speaker/:slug" element={<SpeakerPage />} />
 
             {/* Utility pages */}
+            <Route path="/settings" element={<SettingsPage />} />
             <Route path="/send" element={<SendPage />} />
             <Route path="/buy" element={<BuyTrustPage />} />
             <Route path="/leaderboard" element={<LeaderboardPage />} />
             <Route path="/invite" element={<InvitePage />} />
+            <Route path="/vibes" element={<VibesListPage />} />
             <Route path="/vibe/:index" element={<VibeProfilePage />} />
 
             {/* Fallback */}

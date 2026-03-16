@@ -84,6 +84,9 @@ const cardWrap: CSSProperties = {
   transition: "transform 0.15s, box-shadow 0.15s",
   boxSizing: "border-box",
   overflow: "hidden",
+  background: "rgba(22,22,24,0.29)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
 };
 
 const trackIcon: CSSProperties = {
@@ -231,7 +234,7 @@ export default function AgendaPage() {
 
               {/* Content */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+                <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 4, lineHeight: 1.3, overflow: "hidden", textOverflow: "ellipsis", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", color: C.textPrimary }}>
                   {s.title}
                 </div>
                 {speakerLine && (

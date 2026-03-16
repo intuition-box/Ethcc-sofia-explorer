@@ -1,24 +1,15 @@
 import topicGraph from "../../../bdd/web3_topics_graph.json";
-import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
+import { DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
 import type { WalletConnection } from "./intuition";
-import { ensureUserAtom, approveProxy } from "./intuition";
+import { approveProxy, depositOnAtoms } from "./intuition";
 
 const TOPIC_ATOM_IDS = topicGraph.topicAtomIds as Record<string, string>;
-const SUPPORTS_PREDICATE = topicGraph.predicates.supports;
 
 // ─── Types ───────────────────────────────────────────────────────
 
 export interface VoteResult {
   hash: string;
   blockNumber: number;
-  tripleCount: number;
-}
-
-export interface VoteCostEstimate {
-  tripleCost: bigint;
-  depositPerTriple: bigint;
-  sofiaFee: bigint;
-  totalCost: bigint;
   topicCount: number;
 }
 
@@ -42,42 +33,18 @@ export function resolveTopicAtomIds(topicIds: string[]): {
   return { resolved, missing };
 }
 
-// ─── Estimate vote cost ──────────────────────────────────────────
-
-export async function estimateVoteCost(
-  wallet: WalletConnection,
-  topicCount: number,
-  depositPerTriple?: bigint
-): Promise<VoteCostEstimate> {
-  const tripleCost = await wallet.multiVault.getTripleCost();
-  const deposit = depositPerTriple ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-  const n = BigInt(topicCount);
-  const totalDeposit = deposit * n;
-  const multiVaultCost = (tripleCost + deposit) * n;
-
-  const totalCost: bigint = await wallet.proxy.getTotalCreationCost(
-    n,
-    totalDeposit,
-    multiVaultCost
-  );
-
-  const sofiaFee = totalCost - multiVaultCost;
-
-  return { tripleCost, depositPerTriple: deposit, sofiaFee, totalCost, topicCount };
-}
-
-// ─── Submit votes on-chain ───────────────────────────────────────
+// ─── Submit votes on-chain (deposit into atom vaults) ────────────
 
 /**
- * Create vote triples: User → supports → Topic for each selected topic.
- * 1. Ensures user atom exists
- * 2. Approves proxy (if needed)
- * 3. Creates all triples in a single batch tx
+ * Deposit into topic atom vaults to signal support.
+ * No triples created — users are identified by their vault positions.
+ * 1. Approves proxy (if needed)
+ * 2. Batch deposits into all selected topic atom vaults
  */
 export async function submitVotes(
   wallet: WalletConnection,
   topicIds: string[],
-  depositPerTriple?: bigint,
+  depositPerAtom?: bigint,
   onStep?: (step: string) => void
 ): Promise<VoteResult> {
   const { resolved, missing } = resolveTopicAtomIds(topicIds);
@@ -88,16 +55,7 @@ export async function submitVotes(
     );
   }
 
-  // Step 1: Ensure user atom
-  onStep?.("Creating your on-chain identity...");
-  const userAtomId = await ensureUserAtom(
-    wallet.multiVault,
-    wallet.proxy,
-    wallet.address,
-    wallet.ethers
-  );
-
-  // Step 2: Approve proxy
+  // Step 1: Approve proxy
   onStep?.("Approving proxy contract...");
   try {
     await approveProxy(wallet.multiVault);
@@ -105,44 +63,15 @@ export async function submitVotes(
     // Already approved — ignore
   }
 
-  // Step 3: Build triple arrays
-  const subjectIds = resolved.map(() => userAtomId);
-  const predicateIds = resolved.map(() => SUPPORTS_PREDICATE);
-  const objectIds = resolved.map((r) => r.atomId);
+  // Step 2: Deposit into atom vaults
+  const atomIds = resolved.map((r) => r.atomId);
+  const deposit = depositPerAtom ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
 
-  const deposit = depositPerTriple ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-  const assets = resolved.map(() => deposit);
-
-  // Step 4: Calculate cost
-  onStep?.("Calculating costs...");
-  const tripleCost = await wallet.multiVault.getTripleCost();
-  const n = BigInt(resolved.length);
-  const totalDeposit = deposit * n;
-  const multiVaultCost = (tripleCost + deposit) * n;
-  const totalCost = await wallet.proxy.getTotalCreationCost(
-    n,
-    totalDeposit,
-    multiVaultCost
-  );
-
-  // Step 5: Send batch tx
-  onStep?.(`Submitting ${resolved.length} vote${resolved.length > 1 ? "s" : ""} on-chain...`);
-  const tx = await wallet.proxy.createTriples(
-    wallet.address,
-    subjectIds,
-    predicateIds,
-    objectIds,
-    assets,
-    CHAIN_CONFIG.CURVE_ID,
-    { value: totalCost }
-  );
-
-  onStep?.("Waiting for confirmation...");
-  const receipt = await tx.wait();
+  const result = await depositOnAtoms(wallet, atomIds, deposit, onStep);
 
   return {
-    hash: tx.hash,
-    blockNumber: receipt.blockNumber,
-    tripleCount: resolved.length,
+    hash: result.hash,
+    blockNumber: result.blockNumber,
+    topicCount: resolved.length,
   };
 }
