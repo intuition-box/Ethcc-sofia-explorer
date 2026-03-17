@@ -78,7 +78,13 @@ export default function CartPage() {
   const [publishDone, setPublishDone] = useState(false);
   const [publishError, setPublishError] = useState("");
 
-  useEffect(() => { setTopics(StorageService.loadTopics()); }, []);
+  // Reload topics when page gets focus (coming back from other pages)
+  useEffect(() => {
+    setTopics(StorageService.loadTopics());
+    const handleFocus = () => setTopics(StorageService.loadTopics());
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
 
   // Category lookup
   const categoryMap = useMemo(() => {
@@ -115,30 +121,66 @@ export default function CartPage() {
   const tripleCount = topicList.length + cartSessions.length + cartTopics.length;
   const isEmpty = tripleCount === 0;
 
-  // Fetch real on-chain triple cost via read-only provider
+  // Estimate cost: deposits use getTotalDepositCost, sessions use getTripleCost
+  const depositCount = topicList.length + cartTopics.length; // interests + voted topics → deposit
+  const sessionCount = cartSessions.length; // sessions → triples
+
   const [realCost, setRealCost] = useState<string | null>(null);
   useEffect(() => {
     if (tripleCount === 0) { setRealCost(null); return; }
     let cancelled = false;
     import("ethers").then(({ ethers }) => {
       const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const proxy = new ethers.Contract(
+        CHAIN_CONFIG.SOFIA_PROXY,
+        [
+          "function getTotalDepositCost(uint256 depositAmount) view returns (uint256)",
+          "function getTotalCreationCost(uint256 depositCount, uint256 totalDeposit, uint256 multiVaultCost) view returns (uint256)",
+        ],
+        provider
+      );
       const mv = new ethers.Contract(
         CHAIN_CONFIG.MULTIVAULT,
         ["function getTripleCost() view returns (uint256)"],
         provider
       );
-      return mv.getTripleCost().then((tripleCost: bigint) => {
+
+      const deposit = BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+      const promises: Promise<bigint>[] = [];
+
+      // Cost for deposits (interests + topics)
+      if (depositCount > 0) {
+        const totalDeposit = deposit * BigInt(depositCount);
+        promises.push(proxy.getTotalDepositCost(totalDeposit));
+      } else {
+        promises.push(Promise.resolve(0n));
+      }
+
+      // Cost for session triples
+      if (sessionCount > 0) {
+        promises.push(
+          mv.getTripleCost().then((tripleCost: bigint) => {
+            const n = BigInt(sessionCount);
+            const totalDep = deposit * n;
+            const mvCost = (tripleCost + deposit) * n;
+            return proxy.getTotalCreationCost(n, totalDep, mvCost);
+          })
+        );
+      } else {
+        promises.push(Promise.resolve(0n));
+      }
+
+      return Promise.all(promises).then(([depCost, triCost]) => {
         if (cancelled) return;
-        const deposit = BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-        const total = (tripleCost + deposit) * BigInt(tripleCount);
+        const total = (depCost as bigint) + (triCost as bigint);
         const trustAmount = Number(total) / 1e18;
         setRealCost(trustAmount < 0.01 ? trustAmount.toFixed(4) : trustAmount.toFixed(2));
       });
     }).catch(() => {
-      if (!cancelled) setRealCost(null); // fallback to estimate
+      if (!cancelled) setRealCost(null);
     });
     return () => { cancelled = true; };
-  }, [tripleCount]);
+  }, [depositCount, sessionCount, tripleCount]);
 
   return (
     <div style={page}>
