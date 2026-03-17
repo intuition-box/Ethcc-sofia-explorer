@@ -11,14 +11,12 @@ import { Dots } from "../components/ui/Dots";
 import { SplashBg } from "../components/ui/SplashBg";
 import { QRCodeSVG } from "qrcode.react";
 import {
-  connectWallet,
-  approveProxy,
   ensureUserAtom,
   buildProfileTriples,
   createProfileTriples,
 } from "../services/intuition";
-import type { WalletConnection } from "../services/intuition";
 import { useVibeMatches } from "../hooks/useVibeMatches";
+import { useWalletConnection } from "../hooks/useWalletConnection";
 import { explorerTxUrl } from "../config/constants";
 // Logo image loaded from public/images/logo-splash.webp
 
@@ -140,67 +138,39 @@ export default function OnboardingPage() {
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
 
-  // ── Wallet state ──────────────────────────────────────────────
-  const [walletState, setWalletState] = useState<"idle"|"connecting"|"connected"|"signing"|"done">("idle");
-  const [wallet, setWallet] = useState<WalletConnection | null>(null);
-  const [walletAddress, setWalletAddress] = useState("");
-  const [trustBalance, setTrustBalance] = useState<string | null>(null);
+  // ── Wallet via AppKit hook ────────────────────────────────────
+  const {
+    wallet, address: walletAddress, isConnected: walletConnected,
+    loading: walletLoading, error: walletError, balance: trustBalance,
+    connect: openWalletModal,
+  } = useWalletConnection();
+
+  const [txState, setTxState] = useState<"idle"|"signing"|"done">("idle");
   const [txHash, setTxHash] = useState("");
   const [txError, setTxError] = useState("");
   const [txStatus, setTxStatus] = useState("");
+
+  // Derive walletState from hook
+  const walletState = txState !== "idle" ? txState
+    : walletLoading ? "connecting" as const
+    : walletConnected && wallet ? "connected" as const
+    : "idle" as const;
+
+  // Show wallet errors
+  useEffect(() => {
+    if (walletError) setTxError(walletError);
+  }, [walletError]);
 
   // ── Vibe matches (for step 7 success screen) ─────────────────
   const { matches: vibeMatchesData, loading: vibeLoading } = useVibeMatches(
     selectedTracks,
     [...selectedSessions],
-    walletAddress,
+    walletAddress ?? "",
   );
-
-  // ── Balance polling ───────────────────────────────────────────
-  useEffect(() => {
-    if (!wallet || !walletAddress || trustBalance === null || parseFloat(trustBalance) > 0) return;
-    const interval = setInterval(async () => {
-      try {
-        const bal = await wallet.provider.getBalance(walletAddress);
-        const formatted = wallet.ethers.formatEther(bal);
-        setTrustBalance(formatted);
-      } catch { /* ignore */ }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [wallet, walletAddress, trustBalance]);
-
-  // ── Wallet handlers ───────────────────────────────────────────
-  async function handleConnect() {
-    setWalletState("connecting");
-    setTxError("");
-    try {
-      const conn = await connectWallet();
-      setWallet(conn);
-      setWalletAddress(conn.address);
-      try { await approveProxy(conn.multiVault); } catch { /* may already be approved */ }
-      const bal = await conn.provider.getBalance(conn.address);
-      setTrustBalance(conn.ethers.formatEther(bal));
-      setWalletState("connected");
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e);
-      if (msg === "REDIRECT_METAMASK") {
-        setTxError("Opening MetaMask... Click Connect again once inside MetaMask.");
-        setWalletState("idle");
-        return;
-      }
-      if (msg === "NO_WALLET") {
-        setTxError("Select a wallet from the modal to connect.");
-        setWalletState("idle");
-        return;
-      }
-      setTxError(msg);
-      setWalletState("idle");
-    }
-  }
 
   async function handleCreate() {
     if (!wallet) return;
-    setWalletState("signing");
+    setTxState("signing");
     setTxError("");
     try {
       // Step 1: Ensure user atom exists
@@ -227,14 +197,14 @@ export default function OnboardingPage() {
         lastHash = tripleResult.hash;
       }
 
-      if (!lastHash) { setTxError("No interests or sessions selected."); setWalletState("connected"); return; }
+      if (!lastHash) { setTxError("No interests or sessions selected."); setTxState("idle"); return; }
 
       setTxHash(lastHash);
-      setWalletState("done");
+      setTxState("done");
       setTimeout(() => setStep(7), 1000);
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : String(e));
-      setWalletState("connected");
+      setTxState("idle");
     }
   }
 
@@ -557,9 +527,9 @@ export default function OnboardingPage() {
                   gap: 12,
                 }}
               >
-                <QRCodeSVG value={walletAddress} size={160} bgColor="transparent" fgColor="#ffffff" level="M" />
+                <QRCodeSVG value={walletAddress ?? ""} size={160} bgColor="transparent" fgColor="#ffffff" level="M" />
                 <p style={{ fontSize: 12, color: C.textSecondary, textAlign: "center", fontFamily: "monospace" }}>
-                  {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
+                  {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : ""}
                 </p>
                 {trustBalance !== null && (
                   <p style={{ fontSize: 14, fontWeight: 600, color: parseFloat(trustBalance) > 0 ? C.success : C.warning, textAlign: "center" }}>
@@ -646,7 +616,7 @@ export default function OnboardingPage() {
               </button>
             )}
             {walletState === "idle" && (
-              <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={handleConnect}>
+              <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={openWalletModal}>
                 Connect Wallet
               </button>
             )}
