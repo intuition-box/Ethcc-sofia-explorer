@@ -322,6 +322,12 @@ export async function depositOnAtoms(
   const n = BigInt(atomIds.length);
   const totalDeposit = deposit * n;
 
+  // Approve proxy on MultiVault (required before any proxy operation)
+  onStep?.("Approving proxy...");
+  try {
+    await approveProxy(wallet.multiVault);
+  } catch { /* already approved */ }
+
   // Calculate fee: depositCount * fixedFee + percentageFee on totalDeposit
   const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
   const totalCost = totalDeposit + fee;
