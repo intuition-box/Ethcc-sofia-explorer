@@ -7,6 +7,9 @@ import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
 import { StorageService } from "../services/StorageService";
 import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
+import { useWalletConnection } from "../hooks/useWalletConnection";
+import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTriples, TRACK_ATOM_IDS } from "../services/intuition";
+import { resolveTopicAtomIds } from "../services/voteService";
 
 // ─── Icon mapping (same as VotePage) ────────────────
 const ICON_EMOJI: Record<string, string> = {
@@ -69,6 +72,11 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { cart, toggleCart } = useCart();
   const [topics, setTopics] = useState<Set<string>>(new Set());
+  const { wallet, isConnected, connect: openWalletModal } = useWalletConnection();
+  const [publishing, setPublishing] = useState(false);
+  const [publishStatus, setPublishStatus] = useState("");
+  const [publishDone, setPublishDone] = useState(false);
+  const [publishError, setPublishError] = useState("");
 
   useEffect(() => { setTopics(StorageService.loadTopics()); }, []);
 
@@ -294,12 +302,70 @@ export default function CartPage() {
 
       {tripleCount > 0 && (
         <div style={bottomBar}>
-          <button
-            onClick={() => navigate("/profile")}
-            style={{ ...btnPill, background: "#ffa7b1", color: "#0a0a0a" }}
-          >
-            Validate &amp; Publish On-Chain
-          </button>
+          {publishError && (
+            <div style={{ fontSize: 12, color: C.error, marginBottom: 8, textAlign: "center" }}>{publishError}</div>
+          )}
+          {publishDone ? (
+            <button
+              style={{ ...btnPill, background: C.success, color: "#fff" }}
+              onClick={() => navigate("/profile")}
+            >
+              Published! View Profile
+            </button>
+          ) : !isConnected ? (
+            <button
+              onClick={openWalletModal}
+              style={{ ...btnPill, background: "#ffa7b1", color: "#0a0a0a" }}
+            >
+              Connect Wallet to Publish
+            </button>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!wallet || publishing) return;
+                setPublishing(true);
+                setPublishError("");
+                try {
+                  // 1. Deposit on track atoms (interests)
+                  const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
+                  if (trackAtomIds.length > 0) {
+                    setPublishStatus(`Depositing on ${trackAtomIds.length} interests...`);
+                    await depositOnAtoms(wallet, trackAtomIds);
+                  }
+
+                  // 2. Deposit on topic atoms (votes)
+                  if (cartTopics.length > 0) {
+                    const { resolved } = resolveTopicAtomIds(cartTopics.map((t) => t.id));
+                    if (resolved.length > 0) {
+                      setPublishStatus(`Depositing on ${resolved.length} topics...`);
+                      await depositOnAtoms(wallet, resolved.map((r) => r.atomId));
+                    }
+                  }
+
+                  // 3. Create attending triples (sessions)
+                  if (cartSessions.length > 0) {
+                    setPublishStatus(`Creating ${cartSessions.length} session triples...`);
+                    const userAtomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers);
+                    const triples = buildProfileTriples(userAtomId, [], cartSessions.map((s) => s.id));
+                    if (triples.length > 0) {
+                      await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
+                    }
+                  }
+
+                  setPublishDone(true);
+                  setPublishStatus("");
+                } catch (e: unknown) {
+                  setPublishError(e instanceof Error ? e.message : "Transaction failed");
+                } finally {
+                  setPublishing(false);
+                }
+              }}
+              disabled={publishing}
+              style={{ ...btnPill, background: "#ffa7b1", color: "#0a0a0a", opacity: publishing ? 0.7 : 1 }}
+            >
+              {publishing ? publishStatus || "Publishing..." : "Validate & Publish On-Chain"}
+            </button>
+          )}
         </div>
       )}
     </div>
