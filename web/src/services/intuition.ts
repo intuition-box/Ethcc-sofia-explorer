@@ -319,10 +319,12 @@ export async function depositOnAtoms(
   if (atomIds.length === 0) throw new Error("No atoms to deposit on.");
 
   const deposit = depositPerAtom ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+  const n = BigInt(atomIds.length);
+  const totalDeposit = deposit * n;
 
-  // Calculate total cost via proxy
-  const totalDeposit = deposit * BigInt(atomIds.length);
-  const totalCost: bigint = await wallet.proxy.getTotalDepositCost(totalDeposit);
+  // Calculate fee: depositCount * fixedFee + percentageFee on totalDeposit
+  const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
+  const totalCost = totalDeposit + fee;
 
   onStep?.(`Depositing on ${atomIds.length} atom${atomIds.length > 1 ? "s" : ""}...`);
 

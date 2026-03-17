@@ -129,12 +129,12 @@ export default function CartPage() {
   useEffect(() => {
     if (tripleCount === 0) { setRealCost(null); return; }
     let cancelled = false;
-    import("ethers").then(({ ethers }) => {
+    import("ethers").then(async ({ ethers }) => {
       const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
       const proxy = new ethers.Contract(
         CHAIN_CONFIG.SOFIA_PROXY,
         [
-          "function getTotalDepositCost(uint256 depositAmount) view returns (uint256)",
+          "function calculateDepositFee(uint256 depositCount, uint256 totalDeposit) view returns (uint256)",
           "function getTotalCreationCost(uint256 depositCount, uint256 totalDeposit, uint256 multiVaultCost) view returns (uint256)",
         ],
         provider
@@ -146,36 +146,29 @@ export default function CartPage() {
       );
 
       const deposit = BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-      const promises: Promise<bigint>[] = [];
+      let total = 0n;
 
       // Cost for deposits (interests + topics)
       if (depositCount > 0) {
-        const totalDeposit = deposit * BigInt(depositCount);
-        promises.push(proxy.getTotalDepositCost(totalDeposit));
-      } else {
-        promises.push(Promise.resolve(0n));
+        const n = BigInt(depositCount);
+        const totalDep = deposit * n;
+        const fee: bigint = await proxy.calculateDepositFee(n, totalDep);
+        total += totalDep + fee;
       }
 
       // Cost for session triples
       if (sessionCount > 0) {
-        promises.push(
-          mv.getTripleCost().then((tripleCost: bigint) => {
-            const n = BigInt(sessionCount);
-            const totalDep = deposit * n;
-            const mvCost = (tripleCost + deposit) * n;
-            return proxy.getTotalCreationCost(n, totalDep, mvCost);
-          })
-        );
-      } else {
-        promises.push(Promise.resolve(0n));
+        const tripleCost: bigint = await mv.getTripleCost();
+        const n = BigInt(sessionCount);
+        const totalDep = deposit * n;
+        const mvCost = (tripleCost + deposit) * n;
+        const triCost: bigint = await proxy.getTotalCreationCost(n, totalDep, mvCost);
+        total += triCost;
       }
 
-      return Promise.all(promises).then(([depCost, triCost]) => {
-        if (cancelled) return;
-        const total = (depCost as bigint) + (triCost as bigint);
-        const trustAmount = Number(total) / 1e18;
-        setRealCost(trustAmount < 0.01 ? trustAmount.toFixed(4) : trustAmount.toFixed(2));
-      });
+      if (cancelled) return;
+      const trustAmount = Number(total) / 1e18;
+      setRealCost(trustAmount < 0.01 ? trustAmount.toFixed(4) : trustAmount.toFixed(2));
     }).catch(() => {
       if (!cancelled) setRealCost(null);
     });
