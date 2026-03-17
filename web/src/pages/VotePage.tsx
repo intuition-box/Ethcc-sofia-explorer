@@ -6,6 +6,9 @@ import type { Web3Category } from "../types";
 import { useCart } from "../hooks/useCart";
 import { Spark } from "../components/ui/Spark";
 import { fetchTrendingTopics, fetchAllTopicEvents, type TopicVaultData } from "../services/trendingService";
+import { useWalletConnection } from "../hooks/useWalletConnection";
+import { resolveTopicAtomIds } from "../services/voteService";
+import { CHAIN_CONFIG } from "../config/constants";
 
 // ─── Icon name → emoji mapping ───────────────────────
 
@@ -274,6 +277,8 @@ type Tab = "trending" | "myvotes" | "discover";
 
 export default function VotePage() {
   const navigate = useNavigate();
+  const { wallet, connect: openWalletModal } = useWalletConnection();
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("discover");
   const [userVotes, setUserVotes] = useState<Set<string>>(() => loadVotes());
   const [discoverIdx, setDiscoverIdx] = useState(0);
@@ -552,10 +557,52 @@ export default function VotePage() {
                     {perfUp ? "+" : "-"}{perfPct}%
                   </span>
                   <button
-                    style={withdrawBtn}
-                    onClick={(e) => { e.stopPropagation(); handleVoteClick(topic.id); }}
+                    style={{ ...withdrawBtn, opacity: withdrawing === topic.id ? 0.5 : 1 }}
+                    disabled={withdrawing === topic.id}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (!wallet) { openWalletModal(); return; }
+                      const { resolved } = resolveTopicAtomIds([topic.id]);
+                      if (resolved.length === 0) {
+                        // No on-chain atom — just remove locally
+                        handleVoteClick(topic.id);
+                        return;
+                      }
+                      const atomId = resolved[0].atomId;
+                      setWithdrawing(topic.id);
+                      try {
+                        // Get max redeemable shares
+                        const shares: bigint = await wallet.multiVault.maxRedeem(
+                          wallet.address, atomId, CHAIN_CONFIG.CURVE_ID
+                        );
+                        if (shares === 0n) {
+                          // No on-chain position — just remove locally
+                          handleVoteClick(topic.id);
+                          return;
+                        }
+                        // Preview to get min assets (5% slippage)
+                        const [expectedAssets] = await wallet.multiVault.previewRedeem(
+                          atomId, CHAIN_CONFIG.CURVE_ID, shares
+                        );
+                        const minAssets = (expectedAssets * 95n) / 100n;
+                        // Redeem
+                        const tx = await wallet.multiVault.redeem(
+                          wallet.address, atomId, CHAIN_CONFIG.CURVE_ID, shares, minAssets
+                        );
+                        await tx.wait();
+                        // Remove from local state
+                        handleVoteClick(topic.id);
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : "";
+                        if (!msg.includes("user rejected")) {
+                          console.warn("[Withdraw] Failed:", msg);
+                        }
+                      } finally {
+                        setWithdrawing(null);
+                      }
+                    }}
                   >
-                    Withdraw
+                    {withdrawing === topic.id ? "Withdrawing..." : "Withdraw"}
                   </button>
                 </div>
               );
