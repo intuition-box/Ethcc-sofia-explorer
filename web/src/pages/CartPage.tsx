@@ -70,7 +70,7 @@ const emptyState: CSSProperties = {
 // ─── Component ──────────────────────────────────────
 export default function CartPage() {
   const navigate = useNavigate();
-  const { cart, toggleCart } = useCart();
+  const { cart, toggleCart, clearCart } = useCart();
   const [topics, setTopics] = useState<Set<string>>(new Set());
   const { wallet, isConnected, connect: openWalletModal } = useWalletConnection();
   const [publishing, setPublishing] = useState(false);
@@ -343,9 +343,9 @@ export default function CartPage() {
           {publishDone ? (
             <button
               style={{ ...btnPill, background: C.success, color: "#fff" }}
-              onClick={() => navigate("/profile")}
+              onClick={() => navigate("/vote")}
             >
-              Published! View Profile
+              Published! View My Votes
             </button>
           ) : !isConnected ? (
             <button
@@ -386,6 +386,12 @@ export default function CartPage() {
                       await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
                     }
                   }
+
+                  // Clear cart after successful publish
+                  clearCart();
+                  setTopics(new Set());
+                  StorageService.saveTopics(new Set());
+                  localStorage.removeItem("ethcc-votes");
 
                   setPublishDone(true);
                   setPublishStatus("");
