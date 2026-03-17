@@ -1,6 +1,7 @@
 import graphData from "../../../bdd/intuition_graph.json";
 import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
+import { modal } from "@reown/appkit/react";
 
 // ─── On-chain data mappings ──────────────────────────────────────
 const PREDICATES = graphData.predicates as Record<string, string>;
@@ -99,7 +100,6 @@ export async function connectWallet(): Promise<WalletConnection> {
   }
 
   // Desktop without MetaMask — open AppKit modal
-  const { modal } = await import("@reown/appkit/react");
   if (modal) {
     modal.open();
   }

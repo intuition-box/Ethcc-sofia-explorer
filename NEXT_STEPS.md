@@ -24,6 +24,7 @@
 12. ~~**Sessions → descriptions enrichies**~~ DONE - Session "VOPS / Partial Stateless nodes" enrichie (seule session avec description < 50 chars).
 13. **Sessions → bouton Add to Cart** - Ajouter un bouton "Add to Cart" visible sur les cards de session.
 14. ~~**Vibes → Connect = Follow on Sofia**~~ DONE - Bouton "Follow on Sofia" ouvre sofia.intuition.box/profile/{addr}.
+15. **PWA Install prompt** - Ajouter un bouton "Install App" entre la premiere transaction et la homepage pour proposer l'installation PWA sur l'ecran d'accueil.
 
 ## INTEGRATION Intuition
 
