@@ -93,7 +93,7 @@ export default function AgendaPage() {
   const publishedTopics = useMemo(() => StorageService.loadTopics(), []);
   const [pendingTopics, setPendingTopics] = useState<Set<string>>(() => {
     try {
-      const raw = localStorage.getItem("ethcc-pending-topics");
+      const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS);
       return raw ? new Set(JSON.parse(raw)) : new Set();
     } catch { return new Set(); }
   });
@@ -114,12 +114,12 @@ export default function AgendaPage() {
       // Remove interest
       next.delete(track);
       setPendingTopics(next);
-      localStorage.setItem("ethcc-pending-topics", JSON.stringify([...next]));
+      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
     } else {
       // Add interest only — sessions are NOT added to cart
       next.add(track);
       setPendingTopics(next);
-      localStorage.setItem("ethcc-pending-topics", JSON.stringify([...next]));
+      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
     }
     // Modal stays open
   };

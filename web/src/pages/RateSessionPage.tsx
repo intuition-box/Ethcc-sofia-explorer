@@ -133,9 +133,9 @@ export default function RateSessionPage() {
       localStorage.setItem(STORAGE_KEYS.RATINGS_PENDING, JSON.stringify(pending));
 
       // Also save to display ratings
-      const ratings = JSON.parse(localStorage.getItem("ethcc-ratings") ?? "{}");
+      const ratings = JSON.parse(localStorage.getItem(STORAGE_KEYS.RATINGS) ?? "{}");
       ratings[session.id] = { rating, timestamp: Date.now() };
-      localStorage.setItem("ethcc-ratings", JSON.stringify(ratings));
+      localStorage.setItem(STORAGE_KEYS.RATINGS, JSON.stringify(ratings));
 
       // Add session to cart so user goes through checkout
       addToCart(session.id);

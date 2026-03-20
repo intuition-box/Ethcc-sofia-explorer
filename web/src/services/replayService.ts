@@ -2,9 +2,10 @@
  * Replay polling service.
  * Fetches replays.json periodically and notifies when new replay links appear.
  */
+import { STORAGE_KEYS } from "../config/constants";
 
 const REPLAY_URL = import.meta.env.BASE_URL + "replays.json";
-const SEEN_KEY = "ethcc-seen-replays";
+const SEEN_KEY = STORAGE_KEYS.SEEN_REPLAYS;
 const POLL_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 interface ReplaysData {
@@ -43,7 +44,7 @@ async function fetchReplays(): Promise<ReplaysData | null> {
 /** Check if the user wants replays for specific sessions */
 function getWantedReplays(): string[] {
   try {
-    return JSON.parse(localStorage.getItem("ethcc-want-replay") ?? "[]");
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.WANT_REPLAY) ?? "[]");
   } catch {
     return [];
   }

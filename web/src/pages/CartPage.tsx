@@ -511,19 +511,19 @@ export default function CartPage() {
 
                   // Move pending topics to published topics
                   try {
-                    const pending: string[] = JSON.parse(localStorage.getItem("ethcc-pending-topics") ?? "[]");
+                    const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
                     if (pending.length > 0) {
                       const existingTopics = StorageService.loadTopics();
                       for (const t of pending) existingTopics.add(t);
                       StorageService.saveTopics(existingTopics);
-                      localStorage.removeItem("ethcc-pending-topics");
+                      localStorage.removeItem(STORAGE_KEYS.PENDING_TOPICS);
                     }
                   } catch { /* ignore */ }
 
                   // Clear cart after successful publish
                   clearCart();
                   setTopics(new Set());
-                  localStorage.removeItem("ethcc-votes");
+                  localStorage.removeItem(STORAGE_KEYS.VOTES);
                   localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
 
                   setPublishDone(true);

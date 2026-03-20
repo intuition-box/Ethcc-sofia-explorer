@@ -190,7 +190,7 @@ export default function OnboardingPage() {
       setEmbeddedWallet(conn);
       setEmbeddedAddress(conn.address);
       setEmbeddedMode("none");
-      localStorage.setItem("ethcc-wallet-address", conn.address);
+      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, conn.address);
 
       // Fetch balance
       const bal = await conn.provider.getBalance(conn.address);
@@ -290,7 +290,7 @@ export default function OnboardingPage() {
   const handleComplete = () => {
     StorageService.saveTopics(selectedTracks);
     StorageService.saveCart(selectedSessions);
-    localStorage.setItem("ethcc-onboarded", "1");
+    localStorage.setItem(STORAGE_KEYS.ONBOARDED, "1");
     navigate("/home");
   };
 

@@ -9,7 +9,7 @@ import { fetchTrendingTopics, fetchAllTopicEvents, type TopicVaultData } from ".
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { resolveTopicAtomIds, fetchUserVotedTopics } from "../services/voteService";
 import { TopicCard } from "../components/vote/TopicCard";
-import { CHAIN_CONFIG } from "../config/constants";
+import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 
 // ─── Icon name → emoji mapping ───────────────────────
 
@@ -52,24 +52,21 @@ function formatTrust(wei: string): string {
   return "0";
 }
 
-const VOTE_STORAGE_KEY = "ethcc-votes";
-const PUBLISHED_VOTES_KEY = "ethcc-published-votes";
-
 function loadVotes(): Set<string> {
   try {
-    const raw = localStorage.getItem(VOTE_STORAGE_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.VOTES);
     if (raw) return new Set(JSON.parse(raw));
   } catch { /* ignore */ }
   return new Set();
 }
 
 function saveVotes(votes: Set<string>) {
-  localStorage.setItem(VOTE_STORAGE_KEY, JSON.stringify([...votes]));
+  localStorage.setItem(STORAGE_KEYS.VOTES, JSON.stringify([...votes]));
 }
 
 function loadPublishedVotes(): Set<string> {
   try {
-    const raw = localStorage.getItem(PUBLISHED_VOTES_KEY);
+    const raw = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
     if (raw) return new Set(JSON.parse(raw));
   } catch { /* ignore */ }
   return new Set();
@@ -287,14 +284,14 @@ export default function VotePage() {
 
   // Hydrate published votes from on-chain positions (GraphQL)
   useEffect(() => {
-    const addr = wallet?.address ?? localStorage.getItem("ethcc-wallet-address");
+    const addr = wallet?.address ?? localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS);
     if (!addr) return;
     fetchUserVotedTopics(addr).then((onChain) => {
       if (onChain.size === 0) return;
       setPublishedVotes((prev) => {
         const merged = new Set([...prev, ...onChain]);
         // Persist to localStorage
-        localStorage.setItem(PUBLISHED_VOTES_KEY, JSON.stringify([...merged]));
+        localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify([...merged]));
         return merged;
       });
     }).catch(() => {});
@@ -379,7 +376,7 @@ export default function VotePage() {
     setUserVotes((prev) => { const next = new Set(prev); next.delete(topicId); return next; });
     setPublishedVotes((prev) => {
       const next = new Set(prev); next.delete(topicId);
-      localStorage.setItem(PUBLISHED_VOTES_KEY, JSON.stringify([...next]));
+      localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify([...next]));
       return next;
     });
     removeFromCart(topicId);

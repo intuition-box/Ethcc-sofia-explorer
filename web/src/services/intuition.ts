@@ -1,5 +1,5 @@
 import graphData from "../../../bdd/intuition_graph.json";
-import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
+import { CHAIN_CONFIG, DEFAULT_DEPOSIT_PER_TRIPLE, STORAGE_KEYS } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
 import { modal } from "@reown/appkit/react";
 
@@ -82,7 +82,7 @@ export async function connectWallet(): Promise<WalletConnection> {
     const signer = await freshProvider.getSigner();
     const address = await signer.getAddress();
 
-    localStorage.setItem("ethcc-wallet-address", address);
+    localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
 
     return buildWalletConnection(ethers, freshProvider, signer, address);
   }

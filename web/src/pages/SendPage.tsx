@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, btnPill, FONT } from "../config/theme";
 import { connectWallet } from "../services/intuition";
@@ -187,7 +188,7 @@ type TxState = "idle" | "connecting" | "sending" | "success" | "error";
 
 export default function SendPage() {
   const navigate = useNavigate();
-  const walletAddr = localStorage.getItem("ethcc-wallet-address") ?? "";
+  const walletAddr = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
 
   const [mode, setMode] = useState<Mode>("qr");
   const [amount, setAmount] = useState("5");
@@ -312,9 +313,9 @@ export default function SendPage() {
 
       // Track transfer for leaderboard
       try {
-        const transfers = JSON.parse(localStorage.getItem("ethcc-trust-transfers") ?? "[]");
+        const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRANSFERS) ?? "[]");
         transfers.push({ from: connection.address, to: recipient, amount, hash: tx.hash, timestamp: Date.now() });
-        localStorage.setItem("ethcc-trust-transfers", JSON.stringify(transfers));
+        localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(transfers));
       } catch { /* ignore */ }
 
       // Update balance after send

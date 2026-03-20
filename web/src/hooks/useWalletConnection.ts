@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppKitAccount, useAppKitProvider, useAppKit } from "@reown/appkit/react";
 import { modal } from "@reown/appkit/react";
-import { CHAIN_CONFIG } from "../config/constants";
+import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
 import type { WalletConnection } from "../services/intuition";
 
@@ -108,7 +108,7 @@ export function useWalletConnection() {
         const conn: WalletConnection = { provider: freshProvider, signer, proxy, multiVault, address: addr, ethers };
         setWallet(conn);
         builtForRef.current = address;
-        localStorage.setItem("ethcc-wallet-address", addr);
+        localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, addr);
         setError("");
         setLoading(false);
         buildingRef.current = false;
@@ -161,7 +161,7 @@ export function useWalletConnection() {
     setWallet(null);
     setBalance(null);
     builtForRef.current = null;
-    localStorage.removeItem("ethcc-wallet-address");
+    localStorage.removeItem(STORAGE_KEYS.WALLET_ADDRESS);
   }, []);
 
   return {

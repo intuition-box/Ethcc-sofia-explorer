@@ -1,7 +1,7 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT } from "../config/theme";
-
+import { STORAGE_KEYS } from "../config/constants";
 import { Ic } from "../components/ui/Icons";
 import { StorageService } from "../services/StorageService";
 import { useVibeMatches } from "../hooks/useVibeMatches";
@@ -108,13 +108,13 @@ const platformDesc: CSSProperties = {
 export default function ProfilePage() {
   const navigate = useNavigate();
 
-  const walletAddress = localStorage.getItem("ethcc-wallet-address") ?? "";
+  const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
   const savedTopics = useMemo(() => StorageService.loadTopics(), []);
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
   const savedCart = useMemo(() => StorageService.loadCart(), []);
   const voteCount = useMemo(() => {
     try {
-      const r = localStorage.getItem("ethcc-votes");
+      const r = localStorage.getItem(STORAGE_KEYS.VOTES);
       return r ? (JSON.parse(r) as unknown[]).length : 0;
     } catch {
       return 0;
@@ -150,7 +150,7 @@ export default function ProfilePage() {
   // Real vibe matches from on-chain data (tracks + votes + sessions)
   const cartSessionIds = useMemo(() => [...savedCart].map(String), [savedCart]);
   const votedTopicIds = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("ethcc-published-votes") ?? "[]") as string[]; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]") as string[]; }
     catch { return []; }
   }, []);
   const { matches: realMatches, loading: matchesLoading } = useVibeMatches(

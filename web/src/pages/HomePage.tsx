@@ -148,14 +148,14 @@ export default function HomePage() {
   const publishedSessions: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
 
   const [walletAddress, setWalletAddress] = useState<string>(() =>
-    localStorage.getItem("ethcc-wallet-address") ?? ""
+    localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? ""
   );
   const [trustBalance, setTrustBalance] = useState<string>("0.000");
 
   // Re-check localStorage when page becomes visible (coming back from BuyTrust, etc.)
   useEffect(() => {
     const handleFocus = () => {
-      const saved = localStorage.getItem("ethcc-wallet-address") ?? "";
+      const saved = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
       setWalletAddress(saved);
     };
     window.addEventListener("focus", handleFocus);

@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
+import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate, useParams } from "react-router-dom";
 import { C, R, glassSurface, btnPill, FONT, getTrackStyle, TYPE_COLORS } from "../config/theme";
 import { sessions } from "../data";
@@ -153,13 +154,13 @@ export default function SessionDetailPage() {
   }
 
   const ts = getTrackStyle(session.track);
-  const publishedSessions: string[] = JSON.parse(localStorage.getItem("ethcc-published-sessions") ?? "[]");
+  const publishedSessions: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
   const isPublished = publishedSessions.includes(session.id);
   const inCart = isPublished || cart.has(session.id);
 
   // ── Ratings from localStorage ──────────────────────
   const allRatings: Record<string, { rating: number; timestamp: number }> = JSON.parse(
-    localStorage.getItem("ethcc-ratings") ?? "{}"
+    localStorage.getItem(STORAGE_KEYS.RATINGS) ?? "{}"
   );
   const myRating = allRatings[session.id];
 
@@ -171,19 +172,19 @@ export default function SessionDetailPage() {
 
   // ── Notify replay ──────────────────────────────────
   const [notifyReplay, setNotifyReplay] = useState(() => {
-    const replays = JSON.parse(localStorage.getItem("ethcc-want-replay") ?? "[]") as string[];
+    const replays = JSON.parse(localStorage.getItem(STORAGE_KEYS.WANT_REPLAY) ?? "[]") as string[];
     return replays.includes(session.id);
   });
   const [showNotifyBubble, setShowNotifyBubble] = useState(false);
 
   const toggleNotifyReplay = useCallback(() => {
-    const replays = JSON.parse(localStorage.getItem("ethcc-want-replay") ?? "[]") as string[];
+    const replays = JSON.parse(localStorage.getItem(STORAGE_KEYS.WANT_REPLAY) ?? "[]") as string[];
     if (notifyReplay) {
-      localStorage.setItem("ethcc-want-replay", JSON.stringify(replays.filter((id: string) => id !== session.id)));
+      localStorage.setItem(STORAGE_KEYS.WANT_REPLAY, JSON.stringify(replays.filter((id: string) => id !== session.id)));
       setNotifyReplay(false);
       setShowNotifyBubble(false);
     } else {
-      localStorage.setItem("ethcc-want-replay", JSON.stringify([...replays, session.id]));
+      localStorage.setItem(STORAGE_KEYS.WANT_REPLAY, JSON.stringify([...replays, session.id]));
       setNotifyReplay(true);
       setShowNotifyBubble(true);
       setTimeout(() => setShowNotifyBubble(false), 3000);

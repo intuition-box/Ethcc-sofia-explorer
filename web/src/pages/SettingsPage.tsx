@@ -1,7 +1,7 @@
 import { useState, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, glassSurface, FONT } from "../config/theme";
-import { CHAIN_CONFIG } from "../config/constants";
+import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { Ic } from "../components/ui/Icons";
 
 // ─── Styles ──────────────────────────────────────────
@@ -61,7 +61,7 @@ const dangerBtn: CSSProperties = {
 export default function SettingsPage() {
   const navigate = useNavigate();
 
-  const walletAddress = localStorage.getItem("ethcc-wallet-address") ?? "";
+  const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
   const shortAddr = walletAddress
     ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`
     : "Not connected";
@@ -81,7 +81,7 @@ export default function SettingsPage() {
   }, [walletAddress]);
 
   const handleDisconnect = () => {
-    localStorage.removeItem("ethcc-wallet-address");
+    localStorage.removeItem(STORAGE_KEYS.WALLET_ADDRESS);
     navigate("/");
   };
 

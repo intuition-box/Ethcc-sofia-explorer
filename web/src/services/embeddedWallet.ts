@@ -1,8 +1,8 @@
-import { CHAIN_CONFIG } from "../config/constants";
+import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
 import type { WalletConnection } from "./intuition";
 
-const STORAGE_KEY = "ethcc-embedded-wallet";
+const STORAGE_KEY = STORAGE_KEYS.EMBEDDED_WALLET;
 
 const MULTIVAULT_ABI = [
   "function getTripleCost() view returns (uint256)",
@@ -96,7 +96,7 @@ export async function createEmbeddedWallet(password: string): Promise<{ address:
     iv,
   };
   localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  localStorage.setItem("ethcc-wallet-address", wallet.address);
+  localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, wallet.address);
 
   return { address: wallet.address, privateKey: wallet.privateKey };
 }
@@ -117,7 +117,7 @@ export async function connectEmbeddedWallet(password: string): Promise<WalletCon
   const signer = new ethers.Wallet(privateKey, provider);
   const address = signer.address;
 
-  localStorage.setItem("ethcc-wallet-address", address);
+  localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
 
   const proxy = new ethers.Contract(CHAIN_CONFIG.SOFIA_PROXY, SofiaFeeProxyAbi, signer);
   const multiVault = new ethers.Contract(CHAIN_CONFIG.MULTIVAULT, MULTIVAULT_ABI, signer);
@@ -127,12 +127,12 @@ export async function connectEmbeddedWallet(password: string): Promise<WalletCon
 
 /** Mark the private key as backed up by the user */
 export function markBackupDone(): void {
-  localStorage.setItem("ethcc-backup-done", "1");
+  localStorage.setItem(STORAGE_KEYS.BACKUP_DONE, "1");
 }
 
 /** Check if the user has acknowledged the backup */
 export function isBackupDone(): boolean {
-  return localStorage.getItem("ethcc-backup-done") === "1";
+  return localStorage.getItem(STORAGE_KEYS.BACKUP_DONE) === "1";
 }
 
 // needsUnlock removed — unused
@@ -140,5 +140,5 @@ export function isBackupDone(): boolean {
 /** Delete the embedded wallet from storage */
 export function deleteEmbeddedWallet(): void {
   localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem("ethcc-backup-done");
+  localStorage.removeItem(STORAGE_KEYS.BACKUP_DONE);
 }

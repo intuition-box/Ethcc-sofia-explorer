@@ -1,4 +1,5 @@
 import { useState, useEffect, type CSSProperties } from "react";
+import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, glassSurface, FONT } from "../config/theme";
 import { LEADERBOARD } from "../data/social";
@@ -240,7 +241,7 @@ const meTag: CSSProperties = {
 
 export default function LeaderboardPage() {
   const navigate = useNavigate();
-  const walletAddr = (localStorage.getItem("ethcc-wallet-address") ?? "").toLowerCase();
+  const walletAddr = (localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "").toLowerCase();
 
   const [liveData, setLiveData] = useState<LeaderboardEntry[] | null>(null);
   const [, setLoading] = useState(true);
@@ -250,7 +251,7 @@ export default function LeaderboardPage() {
     // Use known addresses (connected users stored in localStorage transfers, or hardcoded event addresses)
     const knownAddresses: string[] = [];
     try {
-      const transfers = JSON.parse(localStorage.getItem("ethcc-trust-transfers") ?? "[]");
+      const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.TRANSFERS) ?? "[]");
       for (const t of transfers) {
         if (t.from && !knownAddresses.includes(t.from)) knownAddresses.push(t.from);
         if (t.to && !knownAddresses.includes(t.to)) knownAddresses.push(t.to);

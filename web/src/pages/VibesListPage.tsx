@@ -1,4 +1,5 @@
 import { useMemo, type CSSProperties } from "react";
+import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { VIBES } from "../data/social";
@@ -98,13 +99,13 @@ const sectionLabel: CSSProperties = {
 export default function VibesListPage() {
   const navigate = useNavigate();
 
-  const walletAddress = localStorage.getItem("ethcc-wallet-address") ?? "";
+  const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
   const savedTopics = useMemo(() => StorageService.loadTopics(), []);
   const savedCart = useMemo(() => StorageService.loadCart(), []);
   const cartSessionIds = useMemo(() => [...savedCart].map(String), [savedCart]);
 
   const votedTopicIds = useMemo(() => {
-    try { return JSON.parse(localStorage.getItem("ethcc-published-votes") ?? "[]") as string[]; }
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]") as string[]; }
     catch { return []; }
   }, []);
   const { matches: realMatches, loading } = useVibeMatches(
