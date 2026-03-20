@@ -1,14 +1,12 @@
 import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, btnPill, FONT, getTrackStyle } from "../config/theme";
-import { sessions, trackNames } from "../data";
-import { Ic } from "../components/ui/Icons";
+import { sessions } from "../data";
 import { SplashStep, SlideStep, InterestPicker, SessionPicker, WalletPickerModal } from "../components/onboarding";
 
 import { VIBES } from "../data/social";
 import { StorageService } from "../services/StorageService";
 import { CBends } from "../components/ui/CBends";
-import { Dots } from "../components/ui/Dots";
 import { SplashBg } from "../components/ui/SplashBg";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -22,49 +20,10 @@ import type { WalletConnection } from "../services/intuition";
 import { usePwaInstall } from "../hooks/usePwaInstall";
 import { explorerTxUrl, STORAGE_KEYS } from "../config/constants";
 import {
-  hasEmbeddedWallet,
   createEmbeddedWallet,
   connectEmbeddedWallet,
   markBackupDone,
 } from "../services/embeddedWallet";
-// Logo image loaded from public/images/logo-splash.webp
-
-// ─── Image base path (matches Vite base) ───────────────────────
-const IMG = import.meta.env.BASE_URL + "images/";
-
-// ─── Slide data ─────────────────────────────────────────────────
-const SLIDES = [
-  {
-    image: `${IMG}slide-interests.webp`,
-    title: "Share what\nyou love",
-    subtitle: "Your interests, on-chain.",
-    size: 360,
-  },
-  {
-    image: `${IMG}slide-sessions.webp`,
-    title: "Find the best\nsessions",
-    subtitle: "83 talks, workshops & panels.",
-    size: 360,
-  },
-  {
-    image: `${IMG}slide-vibes.webp`,
-    title: "Meet your\nvibe matches",
-    subtitle: "Connect with nearby attendees.",
-    size: 842,
-  },
-];
-
-// ─── Preload all slide images on module load ────────────────────
-const ALL_IMAGES = [
-  `${IMG}logo-splash.webp`,
-  `${IMG}slide-interests.webp`,
-  `${IMG}slide-sessions.webp`,
-  `${IMG}slide-vibes.webp`,
-];
-ALL_IMAGES.forEach((src) => {
-  const img = new Image();
-  img.src = src;
-});
 
 // ─── Styles ─────────────────────────────────────────────────────
 const page: CSSProperties = {
@@ -170,7 +129,6 @@ export default function OnboardingPage() {
   const [embeddedWallet, setEmbeddedWallet] = useState<WalletConnection | null>(null);
   const [embeddedAddress, setEmbeddedAddress] = useState("");
   const [embeddedBalance, setEmbeddedBalance] = useState<string | null>(null);
-  const hasEmbedded = hasEmbeddedWallet();
 
   // Derive walletState from hook (AppKit or embedded)
   const walletState = txState !== "idle" ? txState
@@ -304,10 +262,7 @@ export default function OnboardingPage() {
   }
 
   // Sessions matching selected tracks
-  const matchingSessions = useMemo(
-    () => sessions.filter((s) => selectedTracks.has(s.track)).slice(0, 20),
-    [selectedTracks],
-  );
+  // matchingSessions moved to SessionPicker component
 
   const selectedSessionObjects = useMemo(
     () => sessions.filter((s) => selectedSessions.has(s.id)),

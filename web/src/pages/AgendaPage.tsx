@@ -1,6 +1,6 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, R, glassSurface, FONT, getTrackStyle, TYPE_COLORS } from "../config/theme";
+import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { sessions, dates, trackNames } from "../data";
 import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
@@ -76,31 +76,7 @@ const pillBase: CSSProperties = {
   flexShrink: 0,
 };
 
-const cardWrap: CSSProperties = {
-  ...glassSurface,
-  display: "flex",
-  gap: 12,
-  padding: 14,
-  marginBottom: 10,
-  cursor: "pointer",
-  transition: "transform 0.15s, box-shadow 0.15s",
-  boxSizing: "border-box",
-  overflow: "hidden",
-  background: "rgba(22,22,24,0.29)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-};
-
-const trackIcon: CSSProperties = {
-  width: 40,
-  height: 40,
-  borderRadius: R.md,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 20,
-  flexShrink: 0,
-};
+// cardWrap and trackIcon removed — now using SessionCard component
 
 const sessionListWrap: CSSProperties = {
   padding: "0 20px 24px",
@@ -341,13 +317,11 @@ export default function AgendaPage() {
         )}
 
         {filtered.map((s) => {
-          const ts = getTrackStyle(s.track);
           const isPublished = publishedSessions.includes(s.id);
           const isTrackPublished = publishedTopics.has(s.track);
           const isTrackPending = pendingTopics.has(s.track);
           const isLocked = isTrackPending && !isTrackPublished;
           const inCart = isPublished || cart.has(s.id);
-          const speakerLine = s.speakers.map((sp) => sp.name).join(", ");
 
           if (isLocked) {
             return <SessionCard key={s.id} session={s} locked />;

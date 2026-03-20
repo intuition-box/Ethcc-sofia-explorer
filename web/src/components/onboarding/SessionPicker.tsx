@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { C, R, getTrackStyle } from "../../config/theme";
+import { C, getTrackStyle } from "../../config/theme";
 import { sessions } from "../../data";
 import { Ic } from "../ui/Icons";
 import styles from "./SessionPicker.module.css";

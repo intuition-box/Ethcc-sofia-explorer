@@ -5,7 +5,6 @@ import { categories, allTopics } from "../data/topics";
 import type { Web3Category } from "../types";
 import { useCart } from "../hooks/useCart";
 import { Spark } from "../components/ui/Spark";
-import { Ic } from "../components/ui/Icons";
 import { fetchTrendingTopics, fetchAllTopicEvents, type TopicVaultData } from "../services/trendingService";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { resolveTopicAtomIds, fetchUserVotedTopics } from "../services/voteService";
@@ -146,14 +145,7 @@ const tabBtn = (active: boolean): CSSProperties => ({
   flexShrink: 0,
 });
 
-const topicCard: CSSProperties = {
-  ...glassSurface,
-  margin: "0 16px 10px",
-  padding: 14,
-  background: "rgba(22,22,24,0.29)",
-  backdropFilter: "blur(20px)",
-  WebkitBackdropFilter: "blur(20px)",
-};
+// topicCard removed — now using TopicCard component
 
 const topicIcon: CSSProperties = {
   width: 36,
@@ -186,35 +178,7 @@ const topicMeta: CSSProperties = {
   marginTop: 2,
 };
 
-// voteCount inlined in topicMeta
-
-const supportBtnStyle = (state: "support" | "pending" | "supported" | "redeem" | "redeeming"): CSSProperties => {
-  // Round button for + and supported
-  if (state === "support" || state === "supported") {
-    return {
-      width: 36, height: 36, minWidth: 36, minHeight: 36, borderRadius: 18,
-      border: "none", cursor: "pointer", padding: 0,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      flexShrink: 0, fontFamily: FONT,
-      background: state === "supported" ? C.successLight : C.surfaceGray,
-    };
-  }
-  // Pill button for pending, redeem, redeeming
-  return {
-    padding: "6px 14px",
-    borderRadius: R.btn,
-    border: "none",
-    background: state === "pending" ? C.flatLight : C.errorLight,
-    color: state === "pending" ? C.flat : C.error,
-    fontSize: 12,
-    fontWeight: 600,
-    fontFamily: FONT,
-    cursor: state === "redeeming" ? "wait" : "pointer",
-    whiteSpace: "nowrap",
-    flexShrink: 0,
-    opacity: state === "redeeming" ? 0.5 : 1,
-  };
-};
+// supportBtnStyle removed — now in TopicCard component
 
 // Discover card styles
 const discoverCard: CSSProperties = {
