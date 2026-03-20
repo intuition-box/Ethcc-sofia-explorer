@@ -244,6 +244,7 @@
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <button onclick="prepareAtomBatches()" id="prepAtomsBtn" disabled>Prepare Batches</button>
     <button class="execute" onclick="executeAllAtomBatches()" id="execAllAtomsBtn" style="display:none">Execute All Batches</button>
+    <button style="background:var(--red);display:none" onclick="stopRequested=true;logAtom('⏹ Stop requested...')" id="stopAtomsBtn">Stop</button>
   </div>
   <div id="atomBatchGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:16px;"></div>
   <div class="log-area" id="atomLog" style="display:none"></div>
@@ -256,6 +257,7 @@
   <div style="display:flex;gap:10px;flex-wrap:wrap;">
     <button onclick="prepareTripleBatches()" id="prepTriplesBtn" disabled>Prepare Batches</button>
     <button class="execute" onclick="executeAllTripleBatches()" id="execAllTriplesBtn" style="display:none">Execute All Batches</button>
+    <button style="background:var(--red);display:none" onclick="stopRequested=true;logTriple('⏹ Stop requested...')" id="stopTriplesBtn">Stop</button>
   </div>
   <div id="tripleBatchGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:16px;"></div>
   <div class="log-area" id="tripleLog" style="display:none"></div>
@@ -269,7 +271,8 @@
 // ============================================================
 const CHAIN_ID = 1155;
 const CHAIN_HEX = '0x483';
-const RPC_URL = 'https://rpc.intuition.box/http';
+const RPC_READ = 'https://rpc.intuition.box/http';     // no rate limit — reads (check, fees)
+const RPC_WRITE = 'https://rpc.intuition.systems/http'; // public RPC — writes (MetaMask uses this for chain)
 const MULTIVAULT = '0x6E35cF57A41fA15eA0EaE9C33e751b01A784Fe7e';
 const SOFIA_PROXY = '0x26F81d723Ad1648194FAA4b7E235105Fd1212c6c';
 const GQL_URL = 'https://mainnet.intuition.sh/v1/graphql';
@@ -279,7 +282,7 @@ const CURVE_ID = 1; // linear bonding curve
 const INTUITION_CHAIN = {
   chainId: CHAIN_HEX, chainName: 'Intuition',
   nativeCurrency: { name: 'Intuition', symbol: 'TRUST', decimals: 18 },
-  rpcUrls: [RPC_URL], blockExplorerUrls: [EXPLORER]
+  rpcUrls: [RPC_WRITE], blockExplorerUrls: [EXPLORER]
 };
 
 const EXISTING_PREDICATES = {
@@ -288,14 +291,18 @@ const EXISTING_PREDICATES = {
   'presented at': '0xd565b68b86bbca8c77bfac6c6947ce96046ecf6d23c997c04cb10af7638ac6b6',
 };
 
-// MultiVault ABI — reads only
+// MultiVault ABI — reads + approve
 const MULTIVAULT_ABI = [
   'function getAtomCost() view returns (uint256)',
   'function getTripleCost() view returns (uint256)',
   'function calculateAtomId(bytes data) pure returns (bytes32)',
   'function calculateTripleId(bytes32 subjectId, bytes32 predicateId, bytes32 objectId) pure returns (bytes32)',
   'function isTermCreated(bytes32 id) view returns (bool)',
+  'function approve(address sender, uint8 approvalType)',
 ];
+
+// MultiVault with signer for approve (needs write access)
+let multiVaultWrite;
 
 // Sofia Fee Proxy ABI — writes (createAtoms, createTriples) + fee calc
 const PROXY_ABI = [
@@ -307,7 +314,8 @@ const PROXY_ABI = [
 ];
 
 const ATOM_BATCH_SIZE = 100;
-const TRIPLE_BATCH_SIZE = 80;
+const TRIPLE_BATCH_SIZE = 50;
+const DEPOSIT_PER_ITEM = 100000000000000000n; // 0.1 TRUST — required by proxy
 const PIN_DELAY = 300;
 
 // ============================================================
@@ -315,6 +323,7 @@ const PIN_DELAY = 300;
 // ============================================================
 let provider, signer, multiVault, proxy, walletAddress;
 let atomCost = 0n, tripleCost = 0n;
+let stopRequested = false;
 let newSessions = [], newTracks = [], newSpeakers = {};
 let eventAtomId = null, graphData = {};
 
@@ -450,14 +459,56 @@ async function connectWallet() {
     provider = new ethers.BrowserProvider(window.ethereum);
     provider.pollingInterval = 30000;
     signer = await provider.getSigner();
-    multiVault = new ethers.Contract(MULTIVAULT, MULTIVAULT_ABI, signer);
-    proxy = new ethers.Contract(SOFIA_PROXY, PROXY_ABI, signer);
+
+    // Read contracts use custom RPC (no rate limit), write contracts use MetaMask signer
+    console.log('[wallet] Setting up read provider:', RPC_READ);
+    let readProvider = new ethers.JsonRpcProvider(RPC_READ, { chainId: CHAIN_ID, name: 'Intuition' });
+
+    // Test RPC connectivity
+    try {
+      const blockNum = await readProvider.getBlockNumber();
+      console.log('[wallet] RPC connected, block:', blockNum);
+    } catch (rpcErr) {
+      console.error('[wallet] RPC FAILED:', rpcErr);
+      alert('Custom RPC failed: ' + rpcErr.message + '. Falling back to MetaMask.');
+      // Fallback to MetaMask provider for reads
+      readProvider = provider;
+    }
+
+    multiVault = new ethers.Contract(MULTIVAULT, MULTIVAULT_ABI, readProvider);
+    multiVaultWrite = new ethers.Contract(MULTIVAULT, MULTIVAULT_ABI, signer); // for approve
+    const proxyRead = new ethers.Contract(SOFIA_PROXY, PROXY_ABI, readProvider);
+    proxy = new ethers.Contract(SOFIA_PROXY, PROXY_ABI, signer); // writes via MetaMask
+    proxy._read = proxyRead;
 
     const addr = await signer.getAddress();
     walletAddress = addr;
-    const bal = await provider.getBalance(addr);
+    console.log('[wallet] Address:', addr);
+
+    // Skip proxy approval if already done this session
+    if (!sessionStorage.getItem('proxy-approved-' + addr)) {
+      console.log('[wallet] Approving proxy on MultiVault...');
+      try {
+        const approveTx = await multiVaultWrite.approve(SOFIA_PROXY, 1);
+        console.log('[wallet] Approve TX sent:', approveTx.hash);
+        await waitForTx(approveTx);
+        console.log('[wallet] Proxy approved!');
+        sessionStorage.setItem('proxy-approved-' + addr, '1');
+      } catch (approveErr) {
+        console.log('[wallet] Approve skipped (already approved):', approveErr.message?.slice(0, 80));
+        sessionStorage.setItem('proxy-approved-' + addr, '1');
+      }
+    } else {
+      console.log('[wallet] Proxy already approved this session');
+    }
+
+    const bal = await readProvider.getBalance(addr);
+    console.log('[wallet] Balance:', ethers.formatEther(bal));
+
     atomCost = await multiVault.getAtomCost();
+    console.log('[wallet] Atom cost:', ethers.formatEther(atomCost));
     tripleCost = await multiVault.getTripleCost();
+    console.log('[wallet] Triple cost:', ethers.formatEther(tripleCost));
 
     document.getElementById('addrDisplay').textContent = addr.slice(0,6) + '...' + addr.slice(-4);
     document.getElementById('balDisplay').textContent = parseFloat(ethers.formatEther(bal)).toFixed(4) + ' TRUST';
@@ -473,9 +524,11 @@ async function connectWallet() {
 // Custom tx.wait (avoid rate limits)
 // ============================================================
 async function waitForTx(tx) {
+  // Use custom RPC for polling (no rate limit)
+  const rpc = new ethers.JsonRpcProvider(RPC_READ, { chainId: CHAIN_ID, name: 'Intuition' });
   for (let i = 0; i < 120; i++) {
     await sleep(3000);
-    const receipt = await provider.getTransactionReceipt(tx.hash);
+    const receipt = await rpc.getTransactionReceipt(tx.hash);
     if (receipt && receipt.blockNumber) return receipt;
   }
   throw new Error('TX not confirmed after 360s');
@@ -707,6 +760,11 @@ function prepareAtomBatches() {
     const tracks = batch.filter(e => e.category === 'tracks').length;
     const sessions = batch.filter(e => e.category === 'sessions').length;
     const speakers = batch.filter(e => e.category === 'speakers').length;
+    const catClass = e => e.category === 'tracks' ? 'cat-track' : e.category === 'sessions' ? 'cat-session' : 'cat-speaker';
+    const detailRows = batch.map(e => {
+      const side = e.isSideEvent ? ' <span style="color:var(--orange)">[S]</span>' : '';
+      return `<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.72rem;" class="${catClass(e)}">${e.label}${side}</div>`;
+    }).join('');
     return `<div class="batch-card" id="atom-batch-${idx}" style="cursor:pointer;" onclick="executeAtomBatch(${idx})">
       <div style="font-weight:700;font-size:1.1rem;margin-bottom:4px;">Batch ${idx+1}</div>
       <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">${batch.length} atoms &middot; ${cost} TRUST</div>
@@ -715,6 +773,10 @@ function prepareAtomBatches() {
         ${sessions ? `<span class="tag" style="background:rgba(143,184,122,0.1);color:var(--green)">${sessions} sessions</span>` : ''}
         ${speakers ? `<span class="tag" style="background:rgba(160,140,184,0.1);color:var(--purple)">${speakers} speakers</span>` : ''}
       </div>
+      <details style="margin-bottom:8px;">
+        <summary style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;">Show details</summary>
+        <div style="max-height:150px;overflow-y:auto;margin-top:4px;">${detailRows}</div>
+      </details>
       <div id="atom-batch-status-${idx}" style="font-size:0.78rem;"><span class="tag" style="background:var(--surface2);color:var(--text-muted)">Ready</span></div>
     </div>`;
   }).join('');
@@ -732,67 +794,125 @@ function logAtom(msg) {
 
 async function executeAllAtomBatches() {
   if (!proxy) { alert('Connect wallet first.'); return; }
+  stopRequested = false;
   document.getElementById('execAllAtomsBtn').disabled = true;
+  document.getElementById('stopAtomsBtn').style.display = 'inline-block';
   for (let i = 0; i < window._atomBatches.length; i++) {
+    if (stopRequested) { logAtom('--- Execution stopped by user ---'); break; }
     const statusEl = document.getElementById(`atom-batch-status-${i}`);
-    if (statusEl && statusEl.innerHTML.includes('tag done')) continue; // already done
+    if (statusEl && statusEl.innerHTML.includes('tag done')) continue;
+    if (statusEl && statusEl.innerHTML.includes('tag error')) {
+      logAtom(`Batch ${i+1}: skipped (previously failed) — click card to retry`);
+      continue;
+    }
     await executeAtomBatch(i);
+    if (statusEl && statusEl.innerHTML.includes('tag error')) {
+      logAtom(`--- Stopping: batch ${i+1} failed. Fix the issue and retry. ---`);
+      break;
+    }
   }
   document.getElementById('execAllAtomsBtn').disabled = false;
-  document.getElementById('execAllAtomsBtn').textContent = 'All Done';
+  document.getElementById('stopAtomsBtn').style.display = 'none';
+  if (!stopRequested) document.getElementById('execAllAtomsBtn').textContent = 'All Done';
+  stopRequested = false;
 }
 
 async function executeAtomBatch(idx) {
-  if (!proxy) { return; }
+  if (!proxy || stopRequested) { return; }
   const batch = window._atomBatches[idx];
   const statusEl = document.getElementById(`atom-batch-status-${idx}`);
+  let step = '';
 
   try {
+    // Step 1: Check existing
+    step = 'checking';
+    logAtom(`Batch ${idx+1}: checking ${batch.length} atoms...`);
     const toCreate = [];
     let skipped = 0;
-    for (let i = 0; i < batch.length; i++) {
-      const entry = batch[i];
-      statusEl.innerHTML = `<span class="tag running">Checking ${i+1}/${batch.length}</span>`;
-      const hexData = ethers.hexlify(ethers.toUtf8Bytes(entry.uri));
-      const atomId = await multiVault.calculateAtomId(hexData);
-      const exists = await multiVault.isTermCreated(atomId);
-      state.atomIds[entry.category][entry.key] = atomId;
-      if (exists) {
-        skipped++;
-        logAtom(`  [${idx+1}] ✓ ${entry.label} — already exists`);
-      } else {
-        toCreate.push({ ...entry, hexData });
-        logAtom(`  [${idx+1}] + ${entry.label} — will create`);
+    const PARALLEL = 20;
+    // Parallel checks in chunks of 20
+    for (let c = 0; c < batch.length; c += PARALLEL) {
+      if (stopRequested) { logAtom(`Batch ${idx+1}: STOPPED`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
+      const chunk = batch.slice(c, c + PARALLEL);
+      statusEl.innerHTML = `<span class="tag running">Checking ${Math.min(c + PARALLEL, batch.length)}/${batch.length}</span>`;
+      const results = await Promise.all(chunk.map(async entry => {
+        const hexData = ethers.hexlify(ethers.toUtf8Bytes(entry.uri));
+        try {
+          const atomId = await multiVault.calculateAtomId(hexData);
+          const exists = await multiVault.isTermCreated(atomId);
+          return { entry, hexData, atomId, exists, error: null };
+        } catch (err) {
+          return { entry, hexData, atomId: null, exists: false, error: err };
+        }
+      }));
+      for (const r of results) {
+        if (r.atomId) state.atomIds[r.entry.category][r.entry.key] = r.atomId;
+        if (r.exists) {
+          skipped++;
+        } else {
+          toCreate.push({ ...r.entry, hexData: r.hexData });
+          logAtom(`  [${idx+1}] + ${r.entry.label}${r.error ? ' (check failed)' : ''}`);
+        }
       }
     }
+    logAtom(`Batch ${idx+1}: check done — ${toCreate.length} new, ${skipped} exist`);
 
     if (!toCreate.length) {
       saveStateLocal();
       statusEl.innerHTML = `<span class="tag done">Skipped (${skipped} exist)</span>`;
-      logAtom(`Batch ${idx+1}: all ${batch.length} atoms already exist`);
       checkAllAtomsDone(); return;
     }
 
+    if (stopRequested) { logAtom(`Batch ${idx+1}: STOPPED by user`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
+
+    // Step 2: Calculate fees
+    step = 'fee-calc';
+    statusEl.innerHTML = `<span class="tag running">Calculating fees...</span>`;
     const n = BigInt(toCreate.length);
     const atomDatas = toCreate.map(e => e.hexData);
-    const assets = toCreate.map(() => 0n);
-    const multiVaultCost = atomCost * n;
-    const totalCost = await proxy.getTotalCreationCost(n, 0n, multiVaultCost);
+    const deposit = DEPOSIT_PER_ITEM;
+    const assets = toCreate.map(() => deposit);
+    const totalDeposit = deposit * n;
+    const multiVaultCost = (atomCost * n) + totalDeposit;
+    const totalCost = await proxy._read.getTotalCreationCost(n, totalDeposit, multiVaultCost);
+    logAtom(`Batch ${idx+1}: fee = ${ethers.formatEther(totalCost)} TRUST for ${toCreate.length} atoms (deposit: ${ethers.formatEther(deposit)} each)`);
 
-    statusEl.innerHTML = `<span class="tag running">MetaMask... (${toCreate.length} atoms)</span>`;
-    logAtom(`Batch ${idx+1}: creating ${toCreate.length} atoms (${skipped} skipped) — ${ethers.formatEther(totalCost)} TRUST`);
+    if (stopRequested) { logAtom(`Batch ${idx+1}: STOPPED by user`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
 
+    // Step 3: Send TX
+    step = 'sending';
+    statusEl.innerHTML = `<span class="tag running">Confirm in MetaMask (${toCreate.length} atoms, ${ethers.formatEther(totalCost)} TRUST)</span>`;
+    logAtom(`Batch ${idx+1}: sending tx — receiver: ${walletAddress}, atoms: ${toCreate.length}, value: ${ethers.formatEther(totalCost)} TRUST, curveId: ${CURVE_ID}`);
+    console.log('[atom-send] params:', { walletAddress, atomCount: atomDatas.length, assets: assets.map(String), curveId: CURVE_ID, value: totalCost.toString() });
+    console.log('[atom-send] first atomData sample:', atomDatas[0]?.slice(0, 40));
     const tx = await proxy.createAtoms(walletAddress, atomDatas, assets, CURVE_ID, { value: totalCost });
-    statusEl.innerHTML = `<span class="tag running">Mining...</span>`;
-    logAtom(`Batch ${idx+1}: TX sent ${tx.hash.slice(0,14)}...`);
+    logAtom(`Batch ${idx+1}: TX sent — ${EXPLORER}/tx/${tx.hash}`);
+
+    // Step 4: Wait for receipt
+    step = 'mining';
+    statusEl.innerHTML = `<span class="tag running">Mining... <a href="${EXPLORER}/tx/${tx.hash}" target="_blank">${tx.hash.slice(0,10)}...</a></span>`;
     const receipt = await waitForTx(tx);
+
+    // Step 5: Check receipt status
+    if (receipt.status === 0) {
+      statusEl.innerHTML = `<span class="tag error">Reverted</span>`;
+      logAtom(`Batch ${idx+1}: ✗ TX REVERTED in block ${receipt.blockNumber} — ${EXPLORER}/tx/${tx.hash}`);
+      logAtom(`Batch ${idx+1}: gas used: ${receipt.gasUsed}, check explorer for revert reason`);
+      return;
+    }
+
     saveStateLocal();
     statusEl.innerHTML = `<span class="tag done">${toCreate.length} created</span>`;
-    logAtom(`Batch ${idx+1}: ✓ confirmed block ${receipt.blockNumber} — ${toCreate.length} created, ${skipped} skipped`);
+    logAtom(`Batch ${idx+1}: ✓ SUCCESS block ${receipt.blockNumber} — ${toCreate.length} atoms created, ${skipped} skipped, gas: ${receipt.gasUsed}`);
     checkAllAtomsDone();
+
   } catch (e) {
-    statusEl.innerHTML = `<span class="tag error">Failed</span>`;
-    logAtom(`Batch ${idx+1}: ✗ ERROR — ${e.message.slice(0, 100)}`);
+    const reason = e.reason || e.data?.message || e.message || String(e);
+    statusEl.innerHTML = `<span class="tag error">Failed at ${step}</span>`;
+    logAtom(`Batch ${idx+1}: ✗ FAILED at step "${step}"`);
+    logAtom(`Batch ${idx+1}: error: ${reason}`);
+    if (e.transaction) logAtom(`Batch ${idx+1}: tx value: ${ethers.formatEther(e.transaction.value || 0n)} TRUST`);
+    if (e.code) logAtom(`Batch ${idx+1}: code: ${e.code}`);
   }
 }
 
@@ -863,6 +983,13 @@ function prepareTripleBatches() {
     const pres = batch.filter(e => e.predicateLabel === 'presented at').length;
     const tag = batch.filter(e => e.predicateLabel === 'has tag').length;
     const spk = batch.filter(e => e.predicateLabel === 'speaking at').length;
+    const detailRows = batch.map(t => {
+      const typeClass = t.predicateLabel === 'presented at' ? 'cat-event' : t.predicateLabel === 'has tag' ? 'cat-track' : 'cat-session';
+      return `<div style="display:flex;gap:4px;padding:2px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:0.72rem;">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.subjectLabel}">${t.subjectLabel}</span>
+        <span class="${typeClass}" style="flex-shrink:0;">${t.predicateLabel === 'presented at' ? '→ EthCC' : t.predicateLabel === 'has tag' ? '→ ' + t.objectLabel : '→ ' + t.objectLabel}</span>
+      </div>`;
+    }).join('');
     return `<div class="batch-card" id="triple-batch-${idx}" style="cursor:pointer;" onclick="executeTripleBatch(${idx})">
       <div style="font-weight:700;font-size:1.1rem;margin-bottom:4px;">Batch ${idx+1}</div>
       <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">${batch.length} triples &middot; ${cost} TRUST</div>
@@ -871,6 +998,10 @@ function prepareTripleBatches() {
         ${tag ? `<span class="tag" style="background:rgba(184,160,128,0.1);color:var(--accent)">${tag} has tag</span>` : ''}
         ${spk ? `<span class="tag" style="background:rgba(143,184,122,0.1);color:var(--green)">${spk} speaking</span>` : ''}
       </div>
+      <details style="margin-bottom:8px;">
+        <summary style="font-size:0.72rem;color:var(--text-muted);cursor:pointer;">Show details</summary>
+        <div style="max-height:150px;overflow-y:auto;margin-top:4px;">${detailRows}</div>
+      </details>
       <div id="triple-batch-status-${idx}" style="font-size:0.78rem;"><span class="tag" style="background:var(--surface2);color:var(--text-muted)">Ready</span></div>
     </div>`;
   }).join('');
@@ -888,70 +1019,162 @@ function logTriple(msg) {
 
 async function executeAllTripleBatches() {
   if (!proxy) { alert('Connect wallet first.'); return; }
+  stopRequested = false;
   document.getElementById('execAllTriplesBtn').disabled = true;
+  document.getElementById('stopTriplesBtn').style.display = 'inline-block';
   for (let i = 0; i < window._tripleBatches.length; i++) {
+    if (stopRequested) { logTriple('--- Execution stopped by user ---'); break; }
     const statusEl = document.getElementById(`triple-batch-status-${i}`);
     if (statusEl && statusEl.innerHTML.includes('tag done')) continue;
+    if (statusEl && statusEl.innerHTML.includes('tag error')) {
+      logTriple(`Batch ${i+1}: skipped (previously failed) — click card to retry`);
+      continue;
+    }
     await executeTripleBatch(i);
+    // Stop if this batch failed
+    if (statusEl && statusEl.innerHTML.includes('tag error')) {
+      logTriple(`--- Stopping: batch ${i+1} failed. Fix the issue and retry. ---`);
+      break;
+    }
   }
   document.getElementById('execAllTriplesBtn').disabled = false;
-  document.getElementById('execAllTriplesBtn').textContent = 'All Done';
+  document.getElementById('stopTriplesBtn').style.display = 'none';
+  if (!stopRequested) document.getElementById('execAllTriplesBtn').textContent = 'All Done';
+  stopRequested = false;
 }
 
 async function executeTripleBatch(idx) {
-  if (!proxy) { return; }
+  if (!proxy || stopRequested) { return; }
   const batch = window._tripleBatches[idx];
   const statusEl = document.getElementById(`triple-batch-status-${idx}`);
+  let step = '';
 
   try {
+    // Step 1: Check existing (parallel, chunks of 20)
+    step = 'checking';
+    logTriple(`Batch ${idx+1}: checking ${batch.length} triples in parallel...`);
     const toCreate = [];
     let skipped = 0;
-    for (let i = 0; i < batch.length; i++) {
-      const t = batch[i];
-      statusEl.innerHTML = `<span class="tag running">Checking ${i+1}/${batch.length}</span>`;
-      const tripleId = await multiVault.calculateTripleId(t.subjectId, t.predicateId, t.objectId);
-      const exists = await multiVault.isTermCreated(tripleId);
-      if (exists) {
-        skipped++;
-        logTriple(`  [${idx+1}] ✓ ${t.subjectLabel} → ${t.predicateLabel} → ${t.objectLabel} — exists`);
-      } else {
-        toCreate.push(t);
-        logTriple(`  [${idx+1}] + ${t.subjectLabel} → ${t.predicateLabel} → ${t.objectLabel} — will create`);
+    const PARALLEL = 20;
+    for (let c = 0; c < batch.length; c += PARALLEL) {
+      if (stopRequested) { logTriple(`Batch ${idx+1}: STOPPED by user`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
+      const chunk = batch.slice(c, c + PARALLEL);
+      statusEl.innerHTML = `<span class="tag running">Checking ${Math.min(c + PARALLEL, batch.length)}/${batch.length}</span>`;
+      const results = await Promise.all(chunk.map(async t => {
+        const tripleId = await multiVault.calculateTripleId(t.subjectId, t.predicateId, t.objectId);
+        const exists = await multiVault.isTermCreated(tripleId);
+        return { t, exists };
+      }));
+      for (const { t, exists } of results) {
+        if (exists) {
+          skipped++;
+        } else {
+          toCreate.push(t);
+          logTriple(`  [${idx+1}] + ${t.subjectLabel} → ${t.predicateLabel} → ${t.objectLabel}`);
+        }
       }
     }
+    logTriple(`Batch ${idx+1}: check done — ${toCreate.length} new, ${skipped} exist`);
 
     if (!toCreate.length) {
       saveStateLocal();
       statusEl.innerHTML = `<span class="tag done">Skipped (${skipped} exist)</span>`;
-      logTriple(`Batch ${idx+1}: all ${batch.length} triples already exist`);
       return;
     }
 
+    if (stopRequested) { logTriple(`Batch ${idx+1}: STOPPED by user`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
+
+    // Step 1b: Verify all referenced atoms exist on-chain (parallel)
+    step = 'verifying-atoms';
+    statusEl.innerHTML = `<span class="tag running">Verifying atoms exist...</span>`;
+    const allIds = new Set();
+    for (const t of toCreate) { allIds.add(t.subjectId); allIds.add(t.predicateId); allIds.add(t.objectId); }
+    // Check all unique IDs in parallel
+    const idList = [...allIds];
+    const existsMap = new Map();
+    for (let c = 0; c < idList.length; c += PARALLEL) {
+      const chunk = idList.slice(c, c + PARALLEL);
+      const results = await Promise.all(chunk.map(async id => {
+        const exists = await multiVault.isTermCreated(id);
+        return { id, exists };
+      }));
+      for (const { id, exists } of results) existsMap.set(id, exists);
+    }
+    let missingAtoms = 0;
+    const validTriples = [];
+    for (const t of toCreate) {
+      const allExist = existsMap.get(t.subjectId) && existsMap.get(t.predicateId) && existsMap.get(t.objectId);
+      if (!allExist) {
+        for (const [id, label] of [[t.subjectId, t.subjectLabel], [t.predicateId, t.predicateLabel], [t.objectId, t.objectLabel]]) {
+          if (!existsMap.get(id)) logTriple(`  [${idx+1}] ⚠ MISSING: ${label} (${id.slice(0,14)}...)`);
+        }
+        missingAtoms++;
+      } else {
+        validTriples.push(t);
+      }
+    }
+    if (missingAtoms > 0) {
+      logTriple(`Batch ${idx+1}: ${missingAtoms} triples skipped (atoms not on-chain yet)`);
+    }
+    if (!validTriples.length) {
+      statusEl.innerHTML = `<span class="tag error">No valid triples (${missingAtoms} missing atoms)</span>`;
+      logTriple(`Batch ${idx+1}: all triples have missing atoms — skip. Create atoms first.`);
+      return;
+    }
+    toCreate.length = 0;
+    toCreate.push(...validTriples);
+    logTriple(`Batch ${idx+1}: ${validTriples.length} triples ready, ${missingAtoms} skipped (missing atoms)`);
+
+    if (stopRequested) { logTriple(`Batch ${idx+1}: STOPPED by user`); statusEl.innerHTML = `<span class="tag" style="background:var(--surface2);color:var(--text-muted)">Stopped</span>`; return; }
+
+    // Step 2: Calculate fees
+    step = 'fee-calc';
+    statusEl.innerHTML = `<span class="tag running">Calculating fees...</span>`;
     const n = BigInt(toCreate.length);
     const subjectIds = toCreate.map(t => t.subjectId);
     const predicateIds = toCreate.map(t => t.predicateId);
     const objectIds = toCreate.map(t => t.objectId);
-    const assets = toCreate.map(() => 0n);
-    const multiVaultCost = tripleCost * n;
-    const totalCost = await proxy.getTotalCreationCost(n, 0n, multiVaultCost);
+    const deposit = DEPOSIT_PER_ITEM;
+    const assets = toCreate.map(() => deposit);
+    const totalDeposit = deposit * n;
+    const multiVaultCost = (tripleCost * n) + totalDeposit;
+    const totalCost = await proxy._read.getTotalCreationCost(n, totalDeposit, multiVaultCost);
+    logTriple(`Batch ${idx+1}: fee = ${ethers.formatEther(totalCost)} TRUST for ${toCreate.length} triples (deposit: ${ethers.formatEther(deposit)} each)`);
 
-    statusEl.innerHTML = `<span class="tag running">MetaMask... (${toCreate.length} triples)</span>`;
-    logTriple(`Batch ${idx+1}: creating ${toCreate.length} triples (${skipped} skipped) — ${ethers.formatEther(totalCost)} TRUST`);
-
+    // Step 3: Send TX
+    step = 'sending';
+    statusEl.innerHTML = `<span class="tag running">Confirm in MetaMask (${toCreate.length} triples, ${ethers.formatEther(totalCost)} TRUST)</span>`;
+    logTriple(`Batch ${idx+1}: waiting for MetaMask confirmation...`);
     const tx = await proxy.createTriples(walletAddress, subjectIds, predicateIds, objectIds, assets, CURVE_ID, { value: totalCost });
-    statusEl.innerHTML = `<span class="tag running">Mining...</span>`;
-    logTriple(`Batch ${idx+1}: TX sent ${tx.hash.slice(0,14)}...`);
+    logTriple(`Batch ${idx+1}: TX sent — ${EXPLORER}/tx/${tx.hash}`);
+
+    // Step 4: Wait for receipt
+    step = 'mining';
+    statusEl.innerHTML = `<span class="tag running">Mining... <a href="${EXPLORER}/tx/${tx.hash}" target="_blank">${tx.hash.slice(0,10)}...</a></span>`;
     const receipt = await waitForTx(tx);
+
+    // Step 5: Check receipt status
+    if (receipt.status === 0) {
+      statusEl.innerHTML = `<span class="tag error">Reverted</span>`;
+      logTriple(`Batch ${idx+1}: ✗ TX REVERTED in block ${receipt.blockNumber} — ${EXPLORER}/tx/${tx.hash}`);
+      logTriple(`Batch ${idx+1}: gas used: ${receipt.gasUsed}, check explorer for revert reason`);
+      return;
+    }
 
     for (const t of toCreate) {
       state.tripleIds.push({ subject: t.subjectLabel, predicate: t.predicateLabel, object: t.objectLabel, txHash: tx.hash });
     }
     saveStateLocal();
     statusEl.innerHTML = `<span class="tag done">${toCreate.length} created</span>`;
-    logTriple(`Batch ${idx+1}: ✓ confirmed block ${receipt.blockNumber} — ${toCreate.length} created, ${skipped} skipped`);
+    logTriple(`Batch ${idx+1}: ✓ SUCCESS block ${receipt.blockNumber} — ${toCreate.length} triples created, ${skipped} skipped, gas: ${receipt.gasUsed}`);
+
   } catch (e) {
-    statusEl.innerHTML = `<span class="tag error">Failed</span>`;
-    logTriple(`Batch ${idx+1}: ✗ ERROR — ${e.message.slice(0, 100)}`);
+    const reason = e.reason || e.data?.message || e.message || String(e);
+    statusEl.innerHTML = `<span class="tag error">Failed at ${step}</span>`;
+    logTriple(`Batch ${idx+1}: ✗ FAILED at step "${step}"`);
+    logTriple(`Batch ${idx+1}: error: ${reason}`);
+    if (e.transaction) logTriple(`Batch ${idx+1}: tx value: ${ethers.formatEther(e.transaction.value || 0n)} TRUST`);
+    if (e.code) logTriple(`Batch ${idx+1}: code: ${e.code}`);
   }
 }
 
