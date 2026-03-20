@@ -20,8 +20,8 @@ export default defineConfig({
         theme_color: "#0a0a0a",
         background_color: "#0a0a0a",
         display: "standalone",
-        start_url: "/Treepl/",
-        scope: "/Treepl/",
+        start_url: "/",
+        scope: "/",
         icons: [
           {
             src: "images/icon-192.png",
@@ -63,7 +63,7 @@ export default defineConfig({
       },
     }),
   ],
-  base: "/Treepl/",
+  base: "/",
   server: {
     proxy: {
       "/api/graphql": {
