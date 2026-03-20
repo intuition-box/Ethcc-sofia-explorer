@@ -1,5 +1,6 @@
+import { useMemo } from "react";
 import { C, getTrackStyle } from "../../config/theme";
-import { trackNames } from "../../data";
+import { trackNames, sessions } from "../../data";
 import styles from "./InterestPicker.module.css";
 import shared from "../../styles/shared.module.css";
 
@@ -11,6 +12,12 @@ interface Props {
 }
 
 export function InterestPicker({ selectedTracks, onToggleTrack, onBack, onNext }: Props) {
+  // Only show tracks that have at least 1 session (exclude empty side-event-only tracks)
+  const visibleTracks = useMemo(
+    () => trackNames.filter((t) => sessions.some((s) => s.track === t)),
+    [],
+  );
+
   return (
     <div className={shared.page}>
       <div className={styles.header}>
@@ -27,7 +34,7 @@ export function InterestPicker({ selectedTracks, onToggleTrack, onBack, onNext }
 
       <div className={styles.scrollArea}>
         <div className={styles.trackGrid}>
-          {trackNames.map((name) => {
+          {visibleTracks.map((name) => {
             const ts = getTrackStyle(name);
             const active = selectedTracks.has(name);
             return (
