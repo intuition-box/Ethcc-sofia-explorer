@@ -7433,6 +7433,143 @@
       ],
       "tags": [],
       "topic": "Applied Cryptography"
+    },
+    {
+      "id": "aurelie-dhellemmes",
+      "slug": "aurelie-dhellemmes",
+      "name": "Aurelie Dhellemmes",
+      "organization": "Digital Asset | Canton",
+      "track": "Block Fighters",
+      "sector": "Enterprise / Canton",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 1,
+      "talks": [
+        {
+          "sessionId": "1gLoT6hu6Nyvw6GvRryp",
+          "title": "Canton Network: sleeping giant?"
+        }
+      ],
+      "tags": [],
+      "topic": "Block Fighters"
+    },
+    {
+      "id": "cperezz",
+      "slug": "cperezz",
+      "name": "CPerezz",
+      "organization": "Ethereum Foundation",
+      "track": "Core Protocol",
+      "sector": "Core Protocol / Research",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 2,
+      "talks": [
+        {
+          "sessionId": "CHzqBfgcHfIN0Hm3Ejqb",
+          "title": "VOPS / Partial Stateless nodes"
+        },
+        {
+          "sessionId": "FmUDqkLYX5rHjn5bg1eb",
+          "title": "The key takeaways of Scaling the L1"
+        }
+      ],
+      "tags": [],
+      "topic": "Core Protocol"
+    },
+    {
+      "id": "gauthier-vila",
+      "slug": "gauthier-vila",
+      "name": "Gauthier Vila",
+      "organization": "Zyfai",
+      "track": "AI Agents and Automation",
+      "sector": "AI / DeFi",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 1,
+      "talks": [
+        {
+          "sessionId": "E1EQiPWN2qpEEGg4V7gl",
+          "title": "DeFi Agents You Can Actually Trust"
+        }
+      ],
+      "tags": [],
+      "topic": "AI Agents and Automation"
+    },
+    {
+      "id": "johnnatan-messias",
+      "slug": "johnnatan-messias",
+      "name": "Johnnatan Messias",
+      "organization": "Max Planck Institute for Software Systems (MPI-SWS)",
+      "track": "Research",
+      "sector": "Research / Governance",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 1,
+      "talks": [
+        {
+          "sessionId": "9bPYyi73xWXngUjfaIZD",
+          "title": "Fairness in Token Delegation"
+        }
+      ],
+      "tags": [],
+      "topic": "Research"
+    },
+    {
+      "id": "pablo-veyrat",
+      "slug": "pablo-veyrat",
+      "name": "Pablo Veyrat",
+      "organization": "Merkl",
+      "track": "DeFi",
+      "sector": "DeFi",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 1,
+      "talks": [
+        {
+          "sessionId": "Dhyq60FeKS1WFoWR8eCq",
+          "title": "Beyond Rewards: Incentives as Core Infrastructure"
+        }
+      ],
+      "tags": [],
+      "topic": "DeFi"
+    },
+    {
+      "id": "seth-for-privacy",
+      "slug": "seth-for-privacy",
+      "name": "Seth For Privacy",
+      "organization": "Cake Wallet",
+      "track": "Privacy & Identity",
+      "sector": "Privacy",
+      "role": null,
+      "bio": null,
+      "twitter": null,
+      "linkedin": null,
+      "github": null,
+      "profilePictureUrl": null,
+      "talkCount": 0,
+      "talks": [],
+      "tags": [],
+      "topic": "Privacy & Identity"
     }
   ]
 }

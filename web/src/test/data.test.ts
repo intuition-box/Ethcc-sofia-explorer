@@ -70,8 +70,8 @@ describe("Data layer", () => {
   });
 
   describe("speakers", () => {
-    it("should have 341 speakers", () => {
-      expect(speakers.length).toBe(341);
+    it("should have 347 speakers", () => {
+      expect(speakers.length).toBe(347);
     });
 
     it("should have slug and name", () => {

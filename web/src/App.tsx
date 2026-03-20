@@ -8,6 +8,7 @@ import { sessions } from "./data";
 import { startSessionNotifScheduler, createTestSession } from "./services/sessionNotifService";
 import { requestNotificationPermission, notifySessionEnd, notifyReplayAvailable } from "./services/notificationService";
 import { startReplayPolling } from "./services/replayService";
+import { subscribeToPush } from "./services/pushService";
 import { C, FONT, glassSurface } from "./config/theme";
 import "./styles/globals.css";
 
@@ -61,9 +62,11 @@ export default function App() {
     return () => clearTimeout(t);
   }, [toast]);
 
-  // ── Request notification permission on first load ───────
+  // ── Request notification permission + push subscription ──
   useEffect(() => {
-    requestNotificationPermission();
+    requestNotificationPermission().then(() => {
+      subscribeToPush().catch(() => {});
+    });
   }, []);
 
   // ── Session end notification scheduler ─────────────────

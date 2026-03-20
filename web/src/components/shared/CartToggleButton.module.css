@@ -14,19 +14,20 @@
   transition: background 0.2s;
 }
 
-.roundDefault { composes: round; background: var(--surface-gray); }
-.roundPublished { composes: round; background: var(--success-light); cursor: default; }
+.roundDefault { composes: round; background: var(--surface-gray); align-self: center; }
+.roundPublished { composes: round; background: var(--success-light); cursor: default; align-self: center; }
 
 .pill {
   padding: 6px 14px;
   border-radius: var(--r-btn);
   border: none;
-  background: var(--flat-light);
-  color: var(--flat);
+  background: var(--flat);
+  color: #0a0a0a;
   font-size: 12px;
   font-weight: 600;
   font-family: var(--font);
   cursor: pointer;
   white-space: nowrap;
   flex-shrink: 0;
+  align-self: center;
 }

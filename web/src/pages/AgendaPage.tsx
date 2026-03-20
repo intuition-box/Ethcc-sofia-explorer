@@ -86,7 +86,7 @@ const sessionListWrap: CSSProperties = {
 
 export default function AgendaPage() {
   const navigate = useNavigate();
-  const { cart, toggleCart } = useCart();
+  const { cart, toggleCart, addToCart, removeFromCart } = useCart();
   const publishedSessions: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
 
   // Published interests (on-chain) vs pending interests (in cart, not yet published)
@@ -111,17 +111,14 @@ export default function AgendaPage() {
   const toggleInterest = (track: string) => {
     const next = new Set(pendingTopics);
     if (next.has(track)) {
-      // Remove interest
       next.delete(track);
-      setPendingTopics(next);
-      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
+      removeFromCart(track);
     } else {
-      // Add interest only — sessions are NOT added to cart
       next.add(track);
-      setPendingTopics(next);
-      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
+      addToCart(track);
     }
-    // Modal stays open
+    setPendingTopics(next);
+    localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
   };
 
   const filtered = useMemo(() => {

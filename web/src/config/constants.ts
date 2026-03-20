@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   SEEN_REPLAYS: "ethcc-seen-replays",
   EMBEDDED_WALLET: "ethcc-embedded-wallet",
   BACKUP_DONE: "ethcc-backup-done",
+  PUSH_SUBSCRIPTION: "ethcc-push-subscription",
 } as const;
 
 // ─── Session Type Colors ────────────────────────────────────────

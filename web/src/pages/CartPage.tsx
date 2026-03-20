@@ -71,19 +71,24 @@ const emptyState: CSSProperties = {
 export default function CartPage() {
   const navigate = useNavigate();
   const { cart, toggleCart, clearCart } = useCart();
-  const [topics, setTopics] = useState<Set<string>>(new Set());
+  const [pendingTopics, setPendingTopics] = useState<string[]>([]);
   const { wallet, isConnected, connect: openWalletModal } = useWalletConnection();
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishDone, setPublishDone] = useState(false);
   const [publishError, setPublishError] = useState("");
 
-  // Reload topics when page gets focus (coming back from other pages)
+  // Reload pending topics when page gets focus (coming back from other pages)
   useEffect(() => {
-    setTopics(StorageService.loadTopics());
-    const handleFocus = () => setTopics(StorageService.loadTopics());
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    const load = () => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS);
+        setPendingTopics(raw ? JSON.parse(raw).filter((t: string) => trackNames.includes(t)) : []);
+      } catch { setPendingTopics([]); }
+    };
+    load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
   }, []);
 
   // Category lookup
@@ -116,7 +121,7 @@ export default function CartPage() {
     return result;
   }, [cart, topicMap]);
 
-  const topicList = [...topics].filter((t) => trackNames.includes(t));
+  const topicList = pendingTopics;
 
   // Pending ratings (from RateSessionPage)
   const pendingRatings: Record<string, number> = JSON.parse(
@@ -228,8 +233,14 @@ export default function CartPage() {
               {topicList.map((t) => {
                 const ts = getTrackStyle(t);
                 return (
-                  <span key={t} style={{ ...pill, background: ts.color, color: "#fff" }}>
-                    {ts.icon} {t}
+                  <span key={t} style={{ ...pill, background: ts.color, color: "#fff", cursor: "pointer" }}
+                    onClick={() => {
+                      const next = pendingTopics.filter((x) => x !== t);
+                      setPendingTopics(next);
+                      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify(next));
+                    }}
+                  >
+                    {ts.icon} {t} <Ic.X s={10} c="#fff" />
                   </span>
                 );
               })}
@@ -522,7 +533,7 @@ export default function CartPage() {
 
                   // Clear cart after successful publish
                   clearCart();
-                  setTopics(new Set());
+                  setPendingTopics([]);
                   localStorage.removeItem(STORAGE_KEYS.VOTES);
                   localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
 

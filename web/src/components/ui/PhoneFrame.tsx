@@ -1,28 +1,8 @@
 import React from "react";
-import { C, FONT } from "../../config/theme";
-import PixelBlast from "./PixelBlast";
+import { FONT } from "../../config/theme";
 
 export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="phone-frame">
-    {/* Animated background */}
-    <div style={{
-      position: "absolute", inset: 0, zIndex: 0, pointerEvents: "none", opacity: 0.3,
-    }}>
-      <PixelBlast
-        variant="diamond"
-        pixelSize={2}
-        color="#ffc6b0"
-        patternScale={1}
-        patternDensity={0.3}
-        pixelSizeJitter={0.45}
-        enableRipples={false}
-        speed={1.9}
-        edgeFade={0}
-        transparent
-        style={{ width: "100%", height: "100%" }}
-      />
-    </div>
-    {/* Content above animation */}
     <div style={{
       position: "relative", zIndex: 1, flex: 1, display: "flex", flexDirection: "column",
       overflow: "hidden",
@@ -35,7 +15,7 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }
         width: 100%;
         height: 100dvh;
         height: -webkit-fill-available;
-        background: ${C.background};
+        background: #060a10;
         overflow: hidden;
         position: relative;
         display: flex;

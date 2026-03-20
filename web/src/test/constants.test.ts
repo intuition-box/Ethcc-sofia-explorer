@@ -2,8 +2,8 @@ import { describe, it, expect } from "vitest";
 import { STORAGE_KEYS, CHAIN_CONFIG } from "../config/constants";
 
 describe("STORAGE_KEYS", () => {
-  it("should have 15 keys", () => {
-    expect(Object.keys(STORAGE_KEYS).length).toBe(15);
+  it("should have 16 keys", () => {
+    expect(Object.keys(STORAGE_KEYS).length).toBe(16);
   });
 
   it("should all start with ethcc-", () => {

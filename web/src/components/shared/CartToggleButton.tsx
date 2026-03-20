@@ -16,9 +16,14 @@ interface Props {
  * - published: round green check
  */
 export function CartToggleButton({ state, onClick }: Props) {
+  const handleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onClick();
+  };
+
   if (state === "published") {
     return (
-      <button className={styles.roundPublished} onClick={onClick}>
+      <button className={styles.roundPublished} onClick={handleClick}>
         <Ic.Check s={16} c={C.success} />
       </button>
     );
@@ -26,14 +31,14 @@ export function CartToggleButton({ state, onClick }: Props) {
 
   if (state === "incart") {
     return (
-      <button className={styles.pill} onClick={onClick}>
+      <button className={styles.pill} onClick={handleClick}>
         In cart
       </button>
     );
   }
 
   return (
-    <button className={styles.roundDefault} onClick={onClick}>
+    <button className={styles.roundDefault} onClick={handleClick}>
       <Ic.Plus s={16} c={C.textSecondary} />
     </button>
   );
