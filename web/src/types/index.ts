@@ -13,7 +13,7 @@ export interface Session {
   stage: string;
   stageId: string;
   track: string;
-  type: "Talk" | "Demo" | "Workshop" | "Panel";
+  type: "Talk" | "Demo" | "Workshop" | "Panel" | "Side Event";
   description: string;
   speakers: SessionSpeaker[];
 }
