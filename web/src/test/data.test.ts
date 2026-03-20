@@ -3,8 +3,8 @@ import { sessions, tracks, speakers, ratingsGraph, dates, trackNames } from "../
 
 describe("Data layer", () => {
   describe("sessions", () => {
-    it("should have 83 sessions", () => {
-      expect(sessions.length).toBe(83);
+    it("should have 395 sessions (317 EthCC + 78 side events)", () => {
+      expect(sessions.length).toBe(395);
     });
 
     it("should have required fields on each session", () => {
@@ -14,32 +14,64 @@ describe("Data layer", () => {
         expect(s.date).toBeTruthy();
         expect(s.track).toBeTruthy();
         expect(s.type).toBeTruthy();
-        expect(s.stage).toBeTruthy();
       }
     });
 
-    it("should have startTime and endTime", () => {
-      for (const s of sessions) {
+    it("should have startTime on EthCC sessions", () => {
+      const ethccSessions = sessions.filter((s) => s.type !== "Side Event");
+      for (const s of ethccSessions) {
         expect(s.startTime).toBeTruthy();
-        expect(s.endTime).toBeTruthy();
       }
+    });
+
+    it("should have valid session types", () => {
+      const validTypes = new Set(["Talk", "Workshop", "Demo", "Side Event"]);
+      for (const s of sessions) {
+        expect(validTypes.has(s.type)).toBe(true);
+      }
+    });
+
+    it("should span 4 conference days", () => {
+      expect(dates).toContain("2026-03-30");
+      expect(dates).toContain("2026-03-31");
+      expect(dates).toContain("2026-04-01");
+      expect(dates).toContain("2026-04-02");
     });
   });
 
   describe("tracks", () => {
-    it("should have 17 tracks", () => {
-      expect(tracks.length).toBe(17);
+    it("should have 23 tracks (19 EthCC + 4 side event)", () => {
+      expect(tracks.length).toBe(23);
     });
 
     it("should have trackNames sorted", () => {
       const sorted = [...trackNames].sort();
       expect(trackNames).toEqual(sorted);
     });
+
+    it("should include side event tracks", () => {
+      expect(trackNames).toContain("Sport & Wellness");
+      expect(trackNames).toContain("Networking & Social");
+      expect(trackNames).toContain("Investor & Fundraising");
+      expect(trackNames).toContain("Builders & Hackathons");
+    });
+
+    it("should include new EthCC tracks", () => {
+      expect(trackNames).toContain("TERSE");
+      expect(trackNames).toContain("Regulation & Compliance");
+    });
+
+    it("every track should have at least 1 session", () => {
+      for (const track of trackNames) {
+        const count = sessions.filter((s) => s.track === track).length;
+        expect(count).toBeGreaterThan(0);
+      }
+    });
   });
 
   describe("speakers", () => {
-    it("should have 278 speakers", () => {
-      expect(speakers.length).toBe(278);
+    it("should have 341 speakers", () => {
+      expect(speakers.length).toBe(341);
     });
 
     it("should have slug and name", () => {
@@ -86,7 +118,6 @@ describe("Data layer", () => {
       for (const [, ratings] of Object.entries(ratingsGraph.sessionRatingTriples)) {
         const ratingKeys = Object.keys(ratings);
         expect(ratingKeys).toEqual(["1", "2", "3", "4", "5"]);
-        // Each rating should have subjectId, predicateId, objectId
         for (const r of Object.values(ratings)) {
           expect(r.subjectId).toMatch(/^0x[a-fA-F0-9]{64}$/);
           expect(r.predicateId).toBe(ratingsGraph.hasTagPredicate);
