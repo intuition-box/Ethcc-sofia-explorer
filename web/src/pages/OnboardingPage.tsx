@@ -18,7 +18,7 @@ import { useVibeMatches } from "../hooks/useVibeMatches";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import type { WalletConnection } from "../services/intuition";
 import { usePwaInstall } from "../hooks/usePwaInstall";
-import { explorerTxUrl, STORAGE_KEYS } from "../config/constants";
+import { explorerTxUrl, STORAGE_KEYS, CHAIN_CONFIG } from "../config/constants";
 import {
   createEmbeddedWallet,
   connectEmbeddedWallet,
@@ -123,7 +123,6 @@ export default function OnboardingPage() {
   // ── Wallet picker modal ──────────────────────────────────
   const [showWalletPicker, setShowWalletPicker] = useState(false);
   const [embeddedMode, setEmbeddedMode] = useState<"none"|"create"|"unlock"|"backup">("none");
-  const [embeddedPassword, setEmbeddedPassword] = useState("");
   const [embeddedPrivateKey, setEmbeddedPrivateKey] = useState("");
   const [embeddedKeyCopied, setEmbeddedKeyCopied] = useState(false);
   const [embeddedWallet, setEmbeddedWallet] = useState<WalletConnection | null>(null);
@@ -145,6 +144,24 @@ export default function OnboardingPage() {
   useEffect(() => {
     if (walletError) setTxError(walletError);
   }, [walletError]);
+
+  // Poll balance for embedded wallet (waiting for $TRUST)
+  useEffect(() => {
+    if (!embeddedWallet || embeddedBalance === null) return;
+    if (parseFloat(embeddedBalance) > 0) return;
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { ethers } = await import("ethers");
+        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const bal = await rpcProvider.getBalance(embeddedWallet.address);
+        if (!cancelled) setEmbeddedBalance(ethers.formatEther(bal));
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(poll, 5000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [embeddedWallet, embeddedBalance]);
 
   // Notify when $TRUST is received (balance goes from 0 to > 0)
   const [trustNotified, setTrustNotified] = useState(false);
@@ -171,12 +188,26 @@ export default function OnboardingPage() {
       setTxError("Password must be at least 4 characters");
       return;
     }
-    setEmbeddedPassword(pw);
+
     setTxError("");
     try {
       const { address, privateKey } = await createEmbeddedWallet(pw);
       setEmbeddedAddress(address);
       setEmbeddedPrivateKey(privateKey);
+
+      // Connect wallet immediately so QR code shows right away
+      const conn = await connectEmbeddedWallet(pw);
+      setEmbeddedWallet(conn);
+      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
+
+      // Fetch balance (non-blocking)
+      try {
+        const bal = await conn.provider.getBalance(address);
+        setEmbeddedBalance(conn.ethers.formatEther(bal));
+      } catch { /* non-critical */ }
+
+      // Close modal, show backup inline on page
+      setShowWalletPicker(false);
       setEmbeddedMode("backup");
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : String(e));
@@ -185,7 +216,7 @@ export default function OnboardingPage() {
 
   async function handleUnlockEmbedded(pw: string) {
     if (!pw) return;
-    setEmbeddedPassword(pw);
+
     setTxError("");
     try {
       const conn = await connectEmbeddedWallet(pw);
@@ -202,19 +233,10 @@ export default function OnboardingPage() {
     }
   }
 
-  async function handleBackupDone() {
-    // After backup, unlock the wallet
+  function handleBackupDone() {
     markBackupDone();
     setEmbeddedMode("none");
     setShowWalletPicker(false);
-    try {
-      const conn = await connectEmbeddedWallet(embeddedPassword);
-      setEmbeddedWallet(conn);
-      const bal = await conn.provider.getBalance(conn.address);
-      setEmbeddedBalance(conn.ethers.formatEther(bal));
-    } catch (e: unknown) {
-      setTxError(e instanceof Error ? e.message : String(e));
-    }
   }
 
   async function handleCreate() {
@@ -518,7 +540,7 @@ export default function OnboardingPage() {
                 Connect Wallet
               </button>
             )}
-            {walletState === "idle" && embeddedMode === "backup" && (
+            {embeddedMode === "backup" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 2 }}>
                 <div style={{ ...glassSurface, padding: 12, textAlign: "center" }}>
                   <p style={{ fontSize: 12, color: C.warning, fontWeight: 600, margin: "0 0 8px" }}>
@@ -544,7 +566,7 @@ export default function OnboardingPage() {
                 Connecting...
               </button>
             )}
-            {walletState === "connected" && (
+            {walletState === "connected" && embeddedMode !== "backup" && (
               parseFloat(effectiveBalance ?? "0") > 0 ? (
                 <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={handleCreate}>
                   Publish On-Chain
