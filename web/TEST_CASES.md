@@ -186,7 +186,7 @@
 
 ### Comment tester les notifications quotidiennement
 
-1. Lance l'app (`pnpm dev`)
+1. Lance l'app (`bun dev`)
 2. Attends 3 minutes → le toast "Rate this session" doit apparaître
 3. Si connecté avec un wallet → vérifie que la notif Push arrive aussi
 4. Pour tester avec un endTime différent : modifie `const endMinutes = now.getMinutes() + 3` dans `sessionNotifService.ts`
