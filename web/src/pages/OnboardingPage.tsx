@@ -500,9 +500,15 @@ export default function OnboardingPage() {
                 }}
               >
                 <QRCodeSVG value={effectiveAddress ?? ""} size={160} bgColor="transparent" fgColor="#ffffff" level="M" />
-                <p style={{ fontSize: 12, color: C.textSecondary, textAlign: "center", fontFamily: "monospace" }}>
-                  {effectiveAddress ? `${effectiveAddress.slice(0, 6)}...${effectiveAddress.slice(-4)}` : ""}
-                </p>
+                <div
+                  style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}
+                  onClick={() => { if (effectiveAddress) { navigator.clipboard.writeText(effectiveAddress); setTxStatus("Address copied!"); setTimeout(() => setTxStatus(""), 2000); } }}
+                >
+                  <p style={{ fontSize: 12, color: C.textSecondary, textAlign: "center", fontFamily: "monospace", margin: 0 }}>
+                    {effectiveAddress ? `${effectiveAddress.slice(0, 6)}...${effectiveAddress.slice(-4)}` : ""}
+                  </p>
+                  {effectiveAddress && <Ic.Copy s={14} c={C.textTertiary} />}
+                </div>
                 {effectiveBalance !== null && (
                   <p style={{ fontSize: 14, fontWeight: 600, color: parseFloat(effectiveBalance) > 0 ? C.success : C.warning, textAlign: "center" }}>
                     {parseFloat(effectiveBalance) > 0
