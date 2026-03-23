@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppKitAccount, useAppKitProvider, useAppKit } from "@reown/appkit/react";
-import { modal } from "@reown/appkit/react";
 import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
 import type { WalletConnection } from "../services/intuition";
@@ -49,9 +48,6 @@ export function useWalletConnection() {
 
     buildingRef.current = true;
     setLoading(true);
-
-    // Close the AppKit modal after a short delay (let WalletConnect handshake settle on mobile)
-    setTimeout(() => { try { modal?.close(); } catch { /* ignore */ } }, 500);
 
     (async () => {
       try {
