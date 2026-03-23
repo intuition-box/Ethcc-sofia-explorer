@@ -214,8 +214,8 @@ export default function OnboardingPage() {
     }
   }
 
-  async function handleUnlockEmbedded(pw: string) {
-    if (!pw) return;
+  async function handleUnlockEmbedded(pw: string): Promise<boolean> {
+    if (!pw) return false;
 
     setTxError("");
     try {
@@ -226,10 +226,15 @@ export default function OnboardingPage() {
       localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, conn.address);
 
       // Fetch balance
-      const bal = await conn.provider.getBalance(conn.address);
-      setEmbeddedBalance(conn.ethers.formatEther(bal));
+      try {
+        const bal = await conn.provider.getBalance(conn.address);
+        setEmbeddedBalance(conn.ethers.formatEther(bal));
+      } catch { /* non-critical: balance polling will retry */ }
+
+      return true;
     } catch (e: unknown) {
       setTxError(e instanceof Error ? e.message : "Wrong password");
+      return false;
     }
   }
 
@@ -596,7 +601,7 @@ export default function OnboardingPage() {
             onClose={() => setShowWalletPicker(false)}
             onExternalWallet={openWalletModal}
             onCreateEmbedded={handleCreateEmbedded}
-            onUnlockEmbedded={handleUnlockEmbedded}
+            onUnlockEmbedded={async (pw: string) => { if (await handleUnlockEmbedded(pw)) setShowWalletPicker(false); }}
             onBackupDone={handleBackupDone}
             embeddedMode={embeddedMode}
             setEmbeddedMode={setEmbeddedMode}

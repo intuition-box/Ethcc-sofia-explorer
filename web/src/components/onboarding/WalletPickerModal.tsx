@@ -101,7 +101,6 @@ export function WalletPickerModal({
                   await onCreateEmbedded(password);
                 } else {
                   await onUnlockEmbedded(password);
-                  onClose();
                 }
               }}
             >
