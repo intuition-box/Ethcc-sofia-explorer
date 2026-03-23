@@ -23,7 +23,9 @@ import {
   createEmbeddedWallet,
   connectEmbeddedWallet,
   markBackupDone,
+  deleteEmbeddedWallet,
 } from "../services/embeddedWallet";
+import { Ic } from "../components/ui/Icons";
 
 // ─── Styles ─────────────────────────────────────────────────────
 const page: CSSProperties = {
@@ -119,6 +121,9 @@ export default function OnboardingPage() {
   const [txHash, setTxHash] = useState("");
   const [txError, setTxError] = useState("");
   const [txStatus, setTxStatus] = useState("");
+
+  // ── Settings menu (step 6) ──────────────────────────────
+  const [showSettings, setShowSettings] = useState(false);
 
   // ── Wallet picker modal ──────────────────────────────────
   const [showWalletPicker, setShowWalletPicker] = useState(false);
@@ -242,6 +247,28 @@ export default function OnboardingPage() {
     markBackupDone();
     setEmbeddedMode("none");
     setShowWalletPicker(false);
+  }
+
+  function handleDisconnect() {
+    // Disconnect AppKit wallet
+    if (walletConnected) disconnectWallet();
+    // Clear embedded wallet state
+    setEmbeddedWallet(null);
+    setEmbeddedAddress("");
+    setEmbeddedBalance(null);
+    setEmbeddedMode("none");
+    setEmbeddedPrivateKey("");
+    setEmbeddedKeyCopied(false);
+    deleteEmbeddedWallet();
+    localStorage.removeItem(STORAGE_KEYS.WALLET_ADDRESS);
+    setTxError("");
+    setTxStatus("");
+    setShowSettings(false);
+  }
+
+  function handleClearAllData() {
+    localStorage.clear();
+    window.location.reload();
   }
 
   async function handleCreate() {
@@ -369,7 +396,35 @@ export default function OnboardingPage() {
               <div key={i} style={{ flex: 1, height: 4, borderRadius: 2, background: i <= 2 ? C.flat : C.surfaceGray }} />
             ))}
           </div>
-          <h2 style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, margin: "0 0 6px" }}>Review &amp; publish</h2>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <h2 style={{ fontSize: 24, fontWeight: 700, color: C.textPrimary, margin: "0 0 6px" }}>Review &amp; publish</h2>
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowSettings((v) => !v)}
+                style={{ width: 36, height: 36, borderRadius: 10, background: C.surfaceGray, display: "flex", alignItems: "center", justifyContent: "center", border: "none", cursor: "pointer" }}
+              >
+                <Ic.Settings s={18} c={C.textSecondary} />
+              </button>
+              {showSettings && (
+                <div style={{ position: "absolute", right: 0, top: 42, ...glassSurface, padding: 8, minWidth: 180, zIndex: 50 }}>
+                  {(walletConnected || embeddedWallet) && (
+                    <button
+                      onClick={handleDisconnect}
+                      style={{ width: "100%", padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: C.warning, textAlign: "left", fontFamily: FONT, borderRadius: R.md }}
+                    >
+                      Disconnect wallet
+                    </button>
+                  )}
+                  <button
+                    onClick={handleClearAllData}
+                    style={{ width: "100%", padding: "10px 12px", background: "none", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: C.error, textAlign: "left", fontFamily: FONT, borderRadius: R.md }}
+                  >
+                    Clear all data
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <p style={{ fontSize: 14, color: C.textSecondary, margin: "0 0 16px" }}>
             {walletState === "idle" && "Connect your wallet, then sign to publish on-chain."}
             {walletState === "connecting" && "Connecting to your wallet..."}
@@ -531,6 +586,27 @@ export default function OnboardingPage() {
             )}
           </div>
         <div style={bottomBar}>
+          {embeddedMode === "backup" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ ...glassSurface, padding: 12, textAlign: "center" }}>
+                <p style={{ fontSize: 12, color: C.warning, fontWeight: 600, margin: "0 0 8px" }}>
+                  Save your private key! You won't see it again.
+                </p>
+                <p style={{ fontSize: 11, color: C.textSecondary, fontFamily: "monospace", wordBreak: "break-all", margin: "0 0 8px" }}>
+                  {embeddedPrivateKey}
+                </p>
+                <button
+                  style={{ ...btnPill, height: 40, fontSize: 13, background: embeddedKeyCopied ? C.success : C.surfaceGray, color: embeddedKeyCopied ? "#0a0a0a" : C.textPrimary }}
+                  onClick={() => { navigator.clipboard.writeText(embeddedPrivateKey); setEmbeddedKeyCopied(true); }}
+                >
+                  {embeddedKeyCopied ? "Copied!" : "Copy Private Key"}
+                </button>
+              </div>
+              <button style={{ ...btnPill, background: C.flat }} onClick={handleBackupDone}>
+                I've saved it — Continue
+              </button>
+            </div>
+          ) : (
           <div style={{ display: "flex", gap: 12 }}>
             {walletState !== "signing" && walletState !== "done" && (
               <button
@@ -545,33 +621,12 @@ export default function OnboardingPage() {
                 Connect Wallet
               </button>
             )}
-            {embeddedMode === "backup" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: 2 }}>
-                <div style={{ ...glassSurface, padding: 12, textAlign: "center" }}>
-                  <p style={{ fontSize: 12, color: C.warning, fontWeight: 600, margin: "0 0 8px" }}>
-                    Save your private key! You won't see it again.
-                  </p>
-                  <p style={{ fontSize: 11, color: C.textSecondary, fontFamily: "monospace", wordBreak: "break-all", margin: "0 0 8px" }}>
-                    {embeddedPrivateKey}
-                  </p>
-                  <button
-                    style={{ ...btnPill, height: 36, fontSize: 13, background: embeddedKeyCopied ? C.success : C.surfaceGray, color: embeddedKeyCopied ? "#0a0a0a" : C.textPrimary }}
-                    onClick={() => { navigator.clipboard.writeText(embeddedPrivateKey); setEmbeddedKeyCopied(true); }}
-                  >
-                    {embeddedKeyCopied ? "Copied!" : "Copy Private Key"}
-                  </button>
-                </div>
-                <button style={{ ...btnPill, background: C.flat }} onClick={handleBackupDone}>
-                  I've saved it — Continue
-                </button>
-              </div>
-            )}
             {walletState === "connecting" && (
               <button style={{ ...btnPill, flex: 2, background: C.flat, opacity: 0.5 }} disabled>
                 Connecting...
               </button>
             )}
-            {walletState === "connected" && embeddedMode !== "backup" && (
+            {walletState === "connected" && (
               parseFloat(effectiveBalance ?? "0") > 0 ? (
                 <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={handleCreate}>
                   Publish On-Chain
@@ -593,6 +648,7 @@ export default function OnboardingPage() {
               </button>
             )}
           </div>
+          )}
         </div>
 
         {/* ── Wallet Picker Modal ──────────────────────────── */}
