@@ -1,7 +1,7 @@
 import { useMemo, useState, type CSSProperties } from "react";
 import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
-import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
+import { C, R, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { Ic } from "../components/ui/Icons";
 import { StorageService } from "../services/StorageService";
 import { useVibeMatches } from "../hooks/useVibeMatches";
@@ -44,7 +44,7 @@ const cardHeader: CSSProperties = {
 
 const avatar: CSSProperties = {
   width: 44, height: 44, borderRadius: 22,
-  background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
+  background: C.surfaceGray, // overridden per-user with avatarColor()
   display: "flex", alignItems: "center", justifyContent: "center",
   fontSize: 15, fontWeight: 700, color: "#0a0a0a", flexShrink: 0,
 };
@@ -149,23 +149,21 @@ export default function VibesListPage() {
         {realMatches.length > 0 && (
           <>
             <div style={sectionLabel}>On-Chain Connections ({realMatches.length})</div>
-            {realMatches.map((m) => {
+            {realMatches.map((m, idx) => {
               const shortLabel = m.label.startsWith("0x")
                 ? `${m.label.slice(0, 6)}...${m.label.slice(-4)}`
                 : m.label;
-              const pct = totalPossible > 0
-                ? Math.round((m.matchScore / totalPossible) * 100)
-                : 0;
+              const pct = m.matchScore; // already 0-100
               return (
-                <div key={m.subjectTermId} style={userCard}>
+                <div key={m.subjectTermId} style={{ ...userCard, cursor: "pointer" }} onClick={() => navigate(`/vibe/${idx}`)}>
                   <div style={cardHeader}>
-                    <div style={avatar}>
-                      {m.label.slice(0, 2).toUpperCase()}
+                    <div style={{ ...avatar, background: avatarColor(m.label) }}>
+                      {m.label.slice(2, 4).toUpperCase()}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={nameStyle}>{shortLabel}</div>
                       <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
-                        {m.matchScore} shared interest{m.matchScore > 1 ? "s" : ""}
+                        {m.sharedTopics.length} shared interest{m.sharedTopics.length > 1 ? "s" : ""}
                       </div>
                     </div>
                     <div style={pctBadge(pct)}>{pct}% match</div>

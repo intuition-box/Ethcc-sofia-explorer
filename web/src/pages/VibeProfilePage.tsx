@@ -1,6 +1,6 @@
 import { useMemo, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
+import { C, R, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { Ic } from "../components/ui/Icons";
 import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
@@ -23,7 +23,7 @@ const backBtn: CSSProperties = {
 };
 const avatarStyle: CSSProperties = {
   width: 80, height: 80, borderRadius: 40,
-  background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
+  background: C.surfaceGray, // overridden with avatarColor()
   display: "flex", alignItems: "center", justifyContent: "center",
   fontSize: 28, fontWeight: 700, color: "#0a0a0a", margin: "0 auto 12px",
 };
@@ -93,7 +93,7 @@ export default function VibeProfilePage() {
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24 }}>
         {/* Avatar + Name */}
         <div style={{ textAlign: "center", padding: "20px 16px" }}>
-          <div style={avatarStyle}>{initials}</div>
+          <div style={{ ...avatarStyle, background: avatarColor(match.label) }}>{initials}</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: C.white, fontFamily: "monospace" }}>{shortAddr}</div>
           {ensProfile?.name && (
             <div style={{ fontSize: 14, color: C.primary, marginTop: 4 }}>{ensProfile.name}</div>

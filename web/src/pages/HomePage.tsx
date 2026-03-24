@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, R, glass, glassSurface, FONT, getTrackStyle } from "../config/theme";
+import { C, R, glass, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { CartToggleButton } from "../components/shared";
 import { sessions, dates } from "../data";
 import { Ic } from "../components/ui/Icons";
@@ -364,7 +364,7 @@ export default function HomePage() {
       {vibeMatches.length > 0 && (
         <>
           <div style={sectionHeader}>
-            <span style={sectionTitle}>Vibe Matches</span>
+            <span style={sectionTitle}>Nearby Vibes</span>
             <span
               style={{ fontSize: 12, color: C.flat, cursor: "pointer" }}
               onClick={() => navigate("/vibes")}
@@ -372,21 +372,27 @@ export default function HomePage() {
               See all
             </span>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 20px 8px" }}>
-            {vibeMatches.slice(0, 4).map((m) => (
-              <div key={m.subjectTermId} style={{ ...glassSurface, padding: 12, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
-                <div style={{ width: 40, height: 40, borderRadius: 20, background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#0a0a0a", flexShrink: 0 }}>
+          <div style={{ display: "flex", gap: 12, overflowX: "auto", padding: "0 20px 8px", scrollbarWidth: "none" }}>
+            {vibeMatches.slice(0, 8).map((m, idx) => (
+              <div
+                key={m.subjectTermId}
+                onClick={() => navigate(`/vibe/${idx}`)}
+                style={{
+                  ...glassSurface, padding: 14, minWidth: 140, maxWidth: 160,
+                  display: "flex", flexDirection: "column", alignItems: "center",
+                  gap: 8, cursor: "pointer", flexShrink: 0,
+                }}
+              >
+                <div style={{ width: 48, height: 48, borderRadius: 24, background: avatarColor(m.label), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#0a0a0a" }}>
                   {m.label.slice(2, 4).toUpperCase()}
                 </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: C.white, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {m.label.slice(0, 6)}...{m.label.slice(-4)}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
-                    {m.sharedTopics.join(", ")}
-                  </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: C.white, fontFamily: "monospace", textAlign: "center" }}>
+                  {m.label.slice(0, 6)}...{m.label.slice(-4)}
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.success }}>{m.matchScore}</span>
+                <div style={{ fontSize: 11, color: C.textSecondary, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                  {m.sharedTopics.slice(0, 2).join(", ")}
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.success }}>{m.matchScore}%</span>
               </div>
             ))}
           </div>

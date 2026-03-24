@@ -71,7 +71,7 @@ const emptyState: CSSProperties = {
 // ─── Component ──────────────────────────────────────
 export default function CartPage() {
   const navigate = useNavigate();
-  const { cart, toggleCart, clearCart } = useCart();
+  const { cart, toggleCart, clearCart, removeFromCart } = useCart();
   const [pendingTopics, setPendingTopics] = useState<string[]>([]);
   const { wallet: appKitWallet, isConnected: appKitConnected, connect: openWalletModal } = useWalletConnection();
   const embeddedCtx = useEmbeddedWallet();
@@ -242,6 +242,7 @@ export default function CartPage() {
                       const next = pendingTopics.filter((x) => x !== t);
                       setPendingTopics(next);
                       localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify(next));
+                      removeFromCart(t);
                     }}
                   >
                     {ts.icon} {t} <Ic.X s={10} c="#fff" />

@@ -1,4 +1,4 @@
-import { C, glassSurface, btnPill, getTrackStyle } from "../../config/theme";
+import { C, glassSurface, btnPill, getTrackStyle, avatarColor } from "../../config/theme";
 import { SplashBg } from "../ui/SplashBg";
 import { CBends } from "../ui/CBends";
 import { explorerTxUrl } from "../../config/constants";
@@ -61,7 +61,7 @@ export function Step7Success({
             <div className={styles.vibeList}>
               {vibeMatchesData.slice(0, 6).map((m) => (
                 <div key={m.subjectTermId} className={`${shared.glass} ${styles.vibeCard}`} style={glassSurface}>
-                  <div className={styles.vibeAvatar}>{m.label.slice(2, 4).toUpperCase()}</div>
+                  <div className={styles.vibeAvatar} style={{ background: avatarColor(m.label) }}>{m.label.slice(2, 4).toUpperCase()}</div>
                   <div className={styles.vibeInfo}>
                     <div className={styles.vibeNameMono}>{m.label.slice(0, 6)}...{m.label.slice(-4)}</div>
                     <div className={styles.vibeShared}>{m.sharedTopics.join(", ")}</div>

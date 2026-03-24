@@ -1,4 +1,4 @@
-import { useState, useMemo, type CSSProperties } from "react";
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { sessions, dates, trackNames } from "../data";
@@ -89,8 +89,13 @@ export default function AgendaPage() {
   const { cart, toggleCart, addToCart, removeFromCart } = useCart();
   const publishedSessions: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
 
-  // Published interests (on-chain) vs pending interests (in cart, not yet published)
-  const publishedTopics = useMemo(() => StorageService.loadTopics(), []);
+  // Published interests (on-chain) — reload on focus (coming back from other pages)
+  const [publishedTopics, setPublishedTopics] = useState(() => StorageService.loadTopics());
+  useEffect(() => {
+    const reload = () => setPublishedTopics(StorageService.loadTopics());
+    window.addEventListener("focus", reload);
+    return () => window.removeEventListener("focus", reload);
+  }, []);
   const [pendingTopics, setPendingTopics] = useState<Set<string>>(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS);
@@ -100,8 +105,8 @@ export default function AgendaPage() {
 
   const allMyTopics = useMemo(() => new Set([...publishedTopics, ...pendingTopics]), [publishedTopics, pendingTopics]);
   const availableTopics = useMemo(() => trackNames.filter((t) => !allMyTopics.has(t)), [allMyTopics]);
-  // All non-published tracks for the modal (includes pending so user can toggle)
-  const modalTopics = useMemo(() => trackNames.filter((t) => !publishedTopics.has(t)), [publishedTopics]);
+  // All tracks for the modal — show published + pending + available
+  const modalTopics = useMemo(() => trackNames, []);
 
   const [showAddInterest, setShowAddInterest] = useState(false);
   const [selectedDay, setSelectedDay] = useState(dates[0] ?? "");
@@ -292,6 +297,7 @@ export default function AgendaPage() {
                       <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary }}>{track}</div>
                       <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
                         {sessionCount} sessions
+                        {isPublished && <span style={{ color: C.success, marginLeft: 6 }}>· published</span>}
                         {inCart && !isPublished && <span style={{ color: C.flat, marginLeft: 6 }}>· in cart</span>}
                       </div>
                     </div>
@@ -320,15 +326,13 @@ export default function AgendaPage() {
           const isPublished = publishedSessions.includes(s.id);
           const isTrackPublished = publishedTopics.has(s.track);
           const isTrackPending = pendingTopics.has(s.track);
-          const hasTrackAccess = isTrackPublished || isTrackPending;
-
           // Sessions whose interest is pending (in cart, not yet on-chain) are locked
           if (isTrackPending && !isTrackPublished) {
             return <SessionCard key={s.id} session={s} locked />;
           }
 
-          // Sessions whose interest hasn't been added at all are hidden
-          if (!hasTrackAccess && !isPublished) {
+          // Sessions whose track is not in user's interests are hidden
+          if (!isTrackPublished && !isTrackPending && !isPublished) {
             return null;
           }
 
