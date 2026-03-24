@@ -195,7 +195,11 @@ export default function HomePage() {
   const [showUnlock, setShowUnlock] = useState(false);
   const [unlockPassword, setUnlockPassword] = useState("");
   const [unlockError, setUnlockError] = useState("");
-  const [walletUnlocked, setWalletUnlocked] = useState(false);
+  const [walletUnlocked, setWalletUnlocked] = useState(!!embeddedCtx.wallet);
+  // Sync with context auto-reconnect
+  useEffect(() => {
+    if (embeddedCtx.wallet) setWalletUnlocked(true);
+  }, [embeddedCtx.wallet]);
   const [showBackupReminder, setShowBackupReminder] = useState(needsBackup);
   const [backupKey, setBackupKey] = useState("");
 

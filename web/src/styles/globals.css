@@ -70,15 +70,11 @@ html, body {
   padding: 0;
   overflow: hidden;
   overscroll-behavior: none;
-  -webkit-overflow-scrolling: touch;
-  background: #02000e;
-}
-
-body {
+  /* Same as PhoneFrame background — fills safe areas on iOS */
+  background: #060a10;
+  color: #f2ded6;
   font-family: Roboto, -apple-system, BlinkMacSystemFont, 'Helvetica Neue',
     'Segoe UI', sans-serif;
-  background: radial-gradient(circle at center, #0a0820 0%, #02000e 100%);
-  color: #f2ded6;
 }
 
 #root {
