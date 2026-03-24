@@ -13,21 +13,19 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }
     <style>{`
       .phone-frame {
         width: 100%;
-        height: 100dvh;
-        height: -webkit-fill-available;
+        height: 100%;
         background: #060a10;
         overflow: hidden;
         position: relative;
         display: flex;
         flex-direction: column;
         font-family: ${FONT};
-        max-width: 430px;
-        padding-top: env(safe-area-inset-top, 0px);
       }
       @media (min-width: 500px) {
         .phone-frame {
           width: 390px;
           height: 844px;
+          max-width: 430px;
           border-radius: 44px;
           box-shadow: 0 32px 64px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
         }
