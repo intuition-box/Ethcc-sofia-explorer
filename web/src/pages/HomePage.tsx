@@ -293,7 +293,7 @@ export default function HomePage() {
                 if (!pw) return;
                 try {
                   const conn = await connectEmbeddedWallet(pw);
-                  // The private key is on the signer
+                  embeddedCtx.setWalletDirectly(conn, conn.address);
                   setBackupKey(conn.signer.privateKey ?? "Could not retrieve key");
                 } catch {
                   alert("Wrong password");

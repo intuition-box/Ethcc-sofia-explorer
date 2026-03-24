@@ -1,0 +1,24 @@
+query GetAtom($id: String!) {
+  atom(term_id: $id) {
+    term_id
+    label
+    image
+    type
+    data
+    created_at
+    creator { id label image }
+  }
+}
+
+query SearchAtoms($searchTerm: String!, $limit: Int!) {
+  atoms(
+    where: { label: { _ilike: $searchTerm } }
+    limit: $limit
+    order_by: { created_at: desc }
+  ) {
+    term_id
+    label
+    image
+    type
+  }
+}

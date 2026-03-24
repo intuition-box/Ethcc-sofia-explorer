@@ -1,0 +1,66 @@
+query GetTriplesByPredicate(
+  $predicateId: String!
+  $objectIds: [String!]!
+  $limit: Int!
+) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $objectIds } }
+    }
+    limit: $limit
+    order_by: { created_at: desc }
+  ) {
+    term_id
+    subject { term_id label image }
+    predicate { term_id label }
+    object { term_id label }
+    term {
+      vaults {
+        curve_id
+        total_shares
+        current_share_price
+        position_count
+      }
+    }
+  }
+}
+
+query GetTripleVoters($tripleId: String!, $limit: Int!) {
+  positions(
+    where: { term_id: { _eq: $tripleId }, shares: { _gt: "0" } }
+    limit: $limit
+    order_by: { shares: desc }
+  ) {
+    account_id
+    shares
+  }
+}
+
+query GetTrendingTriples(
+  $predicateId: String!
+  $objectIds: [String!]!
+  $limit: Int!
+) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $objectIds } }
+    }
+    limit: $limit
+  ) {
+    term_id
+    object { term_id label }
+    term {
+      vaults {
+        total_shares
+        current_share_price
+        position_count
+      }
+    }
+    positions(order_by: { shares: desc }) {
+      account_id
+      shares
+    }
+  }
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo, type CSSProperties } from "react";
+import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { STORAGE_KEYS } from "../config/constants";
@@ -9,6 +9,7 @@ import { useVibeMatches } from "../hooks/useVibeMatches";
 import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
 import { hasEmbeddedWallet, getEmbeddedAddress } from "../services/embeddedWallet";
+import { syncProfileFromChain } from "../services/profileSync";
 
 // ─── Styles ──────────────────────────────────────────
 
@@ -110,17 +111,29 @@ export default function ProfilePage() {
   const navigate = useNavigate();
 
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
-  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const [savedTopics, setSavedTopics] = useState(() => StorageService.loadTopics());
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
-  const savedCart = useMemo(() => StorageService.loadCart(), []);
-  const voteCount = useMemo(() => {
+  const [savedCart, setSavedCart] = useState(() => StorageService.loadCart());
+  const [voteCount, setVoteCount] = useState(() => {
     try {
-      const r = localStorage.getItem(STORAGE_KEYS.VOTES);
+      const r = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
       return r ? (JSON.parse(r) as unknown[]).length : 0;
-    } catch {
-      return 0;
-    }
-  }, []);
+    } catch { return 0; }
+  });
+
+  // Sync on-chain positions into localStorage on mount
+  useEffect(() => {
+    if (!walletAddress) return;
+    syncProfileFromChain(walletAddress).then(() => {
+      // Reload from localStorage after sync
+      setSavedTopics(StorageService.loadTopics());
+      setSavedCart(StorageService.loadCart());
+      try {
+        const v = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
+        setVoteCount(v ? (JSON.parse(v) as unknown[]).length : 0);
+      } catch { /* ignore */ }
+    }).catch(() => { /* sync failed, use local data */ });
+  }, [walletAddress]);
 
   // Detect if connected via embedded wallet (no ENS possible)
   const isEmbeddedWallet = hasEmbeddedWallet() && getEmbeddedAddress()?.toLowerCase() === walletAddress.toLowerCase();

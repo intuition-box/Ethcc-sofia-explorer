@@ -3,6 +3,7 @@ import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, btnPill, FONT } from "../config/theme";
 import { connectWallet } from "../services/intuition";
+import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import type { WalletConnection } from "../services/intuition";
 import { QrDisplay } from "../components/shared/QrDisplay";
 
@@ -188,6 +189,7 @@ type TxState = "idle" | "connecting" | "sending" | "success" | "error";
 
 export default function SendPage() {
   const navigate = useNavigate();
+  const embeddedCtx = useEmbeddedWallet();
   const walletAddr = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
 
   const [mode, setMode] = useState<Mode>("qr");
@@ -284,7 +286,12 @@ export default function SendPage() {
 
     let connection: WalletConnection;
     try {
-      connection = await connectWallet();
+      // Use embedded wallet from context if available, otherwise connectWallet()
+      if (embeddedCtx.wallet) {
+        connection = embeddedCtx.wallet;
+      } else {
+        connection = await connectWallet();
+      }
       const bal = await connection.provider.getBalance(connection.address);
       const formatted = connection.ethers.formatEther(bal);
       setBalance(formatted);

@@ -1,0 +1,291 @@
+/* ─── Header ──────────────────────────────────────── */
+.header {
+  flex-shrink: 0;
+  padding: 0 24px;
+}
+
+.progressBar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  margin-top: 16px;
+}
+
+.progressDot {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+}
+
+.settingsWrap {
+  position: relative;
+}
+
+.settingsBtn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--surface-gray);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+}
+
+.settingsMenu {
+  position: absolute;
+  right: 0;
+  top: 42px;
+  padding: 8px;
+  min-width: 180px;
+  z-index: 50;
+}
+
+.settingsMenuItem {
+  width: 100%;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  border-radius: 8px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 16px;
+}
+
+/* ─── Scroll area ─────────────────────────────────── */
+.scrollArea {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 20px 24px;
+}
+
+.sectionLabel {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.trackPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trackPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 28px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  color: #fff;
+  cursor: default;
+}
+
+.sessionList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sessionRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sessionIcon {
+  flex-shrink: 0;
+}
+
+.sessionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ─── QR section ──────────────────────────────────── */
+.qrCard {
+  margin-top: 24px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.addressRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.address {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+  font-family: monospace;
+  margin: 0;
+}
+
+.balanceRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.balance {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+  margin: 0;
+}
+
+.refreshBtn {
+  background: var(--surface-gray);
+  border: none;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.refreshBtn:disabled {
+  opacity: 0.5;
+}
+
+.disconnectLink {
+  font-size: 12px;
+  color: var(--error);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.qrPlaceholder {
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+  border: 2px dashed rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.qrHint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* ─── Transaction details ─────────────────────────── */
+.txDetails {
+  margin-top: 16px;
+  padding: 16px;
+}
+
+.txDetailsTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  margin-bottom: 8px;
+}
+
+.txRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.txRow:last-child {
+  margin-bottom: 0;
+}
+
+.errorCard {
+  margin-top: 16px;
+  padding: 14px;
+  border-color: var(--error);
+}
+
+.errorText {
+  font-size: 13px;
+  color: var(--error);
+  margin: 0;
+}
+
+/* ─── Bottom bar ──────────────────────────────────── */
+.bottomBar {
+  flex-shrink: 0;
+  padding: 12px 24px 24px;
+  background: transparent;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+}
+
+.backupColumn {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.backupCard {
+  padding: 12px;
+  text-align: center;
+}
+
+.backupWarning {
+  font-size: 12px;
+  color: var(--warning);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.backupKey {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: monospace;
+  word-break: break-all;
+  margin: 0 0 8px;
+}
+
+.buttonRow {
+  display: flex;
+  gap: 12px;
+}

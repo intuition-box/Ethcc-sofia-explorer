@@ -1,0 +1,153 @@
+.center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 0 24px;
+  text-align: center;
+}
+
+.emoji {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: pop-in 0.5s ease;
+}
+
+.heading {
+  font-size: 28px;
+  font-weight: 700;
+  margin: 16px 0 8px;
+  color: var(--white);
+}
+
+.sub {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  max-width: 300px;
+  margin-top: 8px;
+}
+
+.txLink {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--primary);
+  text-decoration: none;
+}
+
+.section {
+  margin-top: 28px;
+  width: 100%;
+  max-width: 340px;
+  text-align: left;
+}
+
+.sectionTitle {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.trackPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.trackPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 28px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1px solid transparent;
+  color: #fff;
+  cursor: default;
+}
+
+.vibeList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vibeCard {
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vibeAvatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #0a0a0a;
+  flex-shrink: 0;
+}
+
+.vibeInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.vibeName {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--white);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vibeNameMono {
+  composes: vibeName;
+  font-family: monospace;
+}
+
+.vibeShared {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vibeScore {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--success);
+}
+
+.installBtn {
+  margin-bottom: 12px;
+}
+
+.installedText {
+  font-size: 13px;
+  color: var(--success);
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.enterBtn {
+  margin: 24px 24px 40px;
+  width: calc(100% - 48px);
+}
+
+@keyframes pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); opacity: 1; }
+}
