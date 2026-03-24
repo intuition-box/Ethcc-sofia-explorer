@@ -113,7 +113,11 @@ export default function ProfilePage() {
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
   const [savedTopics, setSavedTopics] = useState(() => StorageService.loadTopics());
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
-  const [savedCart, setSavedCart] = useState(() => StorageService.loadCart());
+  const [publishedSessionIds, setPublishedSessionIds] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
+    catch { return []; }
+  });
+  const savedCart = useMemo(() => StorageService.loadCart(), []);
   const [voteCount, setVoteCount] = useState(() => {
     try {
       const r = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
@@ -125,14 +129,13 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!walletAddress) return;
     syncProfileFromChain(walletAddress).then(() => {
-      // Reload from localStorage after sync
       setSavedTopics(StorageService.loadTopics());
-      setSavedCart(StorageService.loadCart());
       try {
+        setPublishedSessionIds(JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"));
         const v = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
         setVoteCount(v ? (JSON.parse(v) as unknown[]).length : 0);
       } catch { /* ignore */ }
-    }).catch(() => { /* sync failed, use local data */ });
+    }).catch(() => {});
   }, [walletAddress]);
 
   // Detect if connected via embedded wallet (no ENS possible)
@@ -162,10 +165,6 @@ export default function ProfilePage() {
   };
 
   // Real vibe matches — on-chain published data only, not cart
-  const publishedSessionIds = useMemo<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
-    catch { return []; }
-  }, []);
   const votedTopicIds = useMemo<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]"); }
     catch { return []; }
@@ -204,7 +203,7 @@ export default function ProfilePage() {
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Interests</div>
           </div>
           <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{savedCart.size || "-"}</div>
+            <div style={{ fontSize: 22, fontWeight: 700 }}>{(publishedSessionIds.length + savedCart.size) || "-"}</div>
             <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Sessions</div>
           </div>
           <div style={{ flex: 1, textAlign: "center" }}>
@@ -312,8 +311,7 @@ export default function ProfilePage() {
 
       {/* My Sessions (published + in cart) */}
       {(() => {
-        const publishedIds: string[] = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); } catch { return []; } })();
-        const allMySessionIds = new Set([...savedCart, ...publishedIds]);
+        const allMySessionIds = new Set([...savedCart, ...publishedSessionIds]);
         if (allMySessionIds.size === 0) return null;
         return (
         <>
@@ -321,7 +319,7 @@ export default function ProfilePage() {
           <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 16px" }}>
             {sessions.filter((s) => allMySessionIds.has(s.id)).map((s) => {
               const ts = getTrackStyle(s.track);
-              const isPublished = (() => { try { return (JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]") as string[]).includes(s.id); } catch { return false; } })();
+              const isPublished = publishedSessionIds.includes(s.id);
               return (
                 <div
                   key={s.id}

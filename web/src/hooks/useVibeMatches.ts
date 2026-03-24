@@ -117,11 +117,11 @@ export function useVibeMatches(
           if (voteName) u.votes.add(voteName);
         }
 
-        // Process triples → sessions
+        // Process triples → sessions (use label as key, not term_id)
         for (const triple of triplesData.triples) {
           const sessId = ATOM_TO_SESSION.get(triple.object.term_id);
-          if (sessId) {
-            const u = ensureUser(triple.subject.term_id, triple.subject.label);
+          if (sessId && triple.subject.label) {
+            const u = ensureUser(triple.subject.label, triple.subject.label);
             u.sessions.add(sessId);
           }
         }
