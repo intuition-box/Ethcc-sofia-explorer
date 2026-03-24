@@ -12,7 +12,7 @@ export function SplashStep({ onNext }: Props) {
     <SplashBg>
       <div className={styles.container}>
         <img
-          src={`${IMG}logo-splash.webp`}
+          src={`${IMG}sofia-splash.png`}
           alt="EthCC Sofia"
           className={styles.logo}
         />

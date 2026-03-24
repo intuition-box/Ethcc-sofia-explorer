@@ -6,22 +6,19 @@ const IMG = import.meta.env.BASE_URL + "images/";
 
 const SLIDES = [
   {
-    image: `${IMG}slide-interests.webp`,
+    image: `${IMG}slide-interests.png`,
     title: "Share what\nyou love",
     subtitle: "Your interests, on-chain.",
-    size: 360,
   },
   {
-    image: `${IMG}slide-sessions.webp`,
+    image: `${IMG}slide-sessions.png`,
     title: "Find the best\nsessions",
     subtitle: "310+ talks, workshops & panels.",
-    size: 360,
   },
   {
-    image: `${IMG}slide-vibes.webp`,
+    image: `${IMG}slide-vibes.png`,
     title: "Meet your\nvibe matches",
     subtitle: "Connect with nearby attendees.",
-    size: 842,
   },
 ];
 
@@ -46,7 +43,6 @@ export function SlideStep({ slideIndex, onNext }: Props) {
           alt={slide.title}
           loading="eager"
           className={styles.image}
-          style={{ width: slide.size }}
         />
       </div>
       <div className={styles.footer}>

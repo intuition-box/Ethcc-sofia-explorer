@@ -5,8 +5,9 @@ import { Nav5 } from "./components/ui/Nav5";
 import { useCart } from "./hooks/useCart";
 import { StorageService } from "./services/StorageService";
 import { sessions } from "./data";
-import { startSessionNotifScheduler, createTestSession } from "./services/sessionNotifService";
-import { requestNotificationPermission, notifySessionEnd, notifyReplayAvailable } from "./services/notificationService";
+import { startSessionNotifScheduler, createTestSession, type SessionNotifEvent } from "./services/sessionNotifService";
+import { STORAGE_KEYS } from "./config/constants";
+import { requestNotificationPermission, showNativeNotification, notifyReplayAvailable } from "./services/notificationService";
 import { startReplayPolling } from "./services/replayService";
 import { subscribeToPush } from "./services/pushService";
 import { C, FONT, glassSurface } from "./config/theme";
@@ -69,25 +70,38 @@ export default function App() {
     });
   }, []);
 
-  // ── Session end notification scheduler ─────────────────
+  // ── Session notification scheduler ────────────────────
   useEffect(() => {
-    const testSession = createTestSession();
-    const allSessions = [testSession, ...sessions];
+    // Only notify for sessions the user cares about (cart + published)
+    const cartIds = [...cart];
+    const publishedIds: string[] = (() => { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); } catch { return []; } })();
+    const userSessionIds = new Set([...cartIds, ...publishedIds]);
 
-    const cleanup = startSessionNotifScheduler(allSessions, (session) => {
-      // In-app toast — click navigates to rate page
+    const testSession = createTestSession();
+    const userSessions = [
+      testSession,
+      ...sessions.filter((s) => userSessionIds.has(s.id)),
+    ];
+
+    const cleanup = startSessionNotifScheduler(userSessions, (event: SessionNotifEvent) => {
+      // In-app toast
+      const isRatable = event.type === "end" || event.type === "eod";
       setToast({
-        title: `How was "${session.title}"?`,
-        body: "Tap to rate this session",
-        sessionId: session.id,
+        title: event.message,
+        body: event.type === "h1" ? "Don't miss it!" : "Tap to rate this session",
+        sessionId: isRatable ? event.session.id : undefined,
       });
 
       // Native notification (works when tab is not focused)
-      notifySessionEnd(session.title, session.id);
+      showNativeNotification(event.message, {
+        body: event.type === "h1" ? "Don't miss it!" : "Tap to rate",
+        tag: `${event.type}-${event.session.id}`,
+        url: isRatable ? `/rate/${event.session.id}` : `/session/${event.session.id}`,
+      });
     });
 
     return cleanup;
-  }, []);
+  }, [cart]);
 
   // ── Replay polling ─────────────────────────────────────
   useEffect(() => {

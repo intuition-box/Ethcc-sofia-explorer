@@ -1,143 +1,199 @@
 /**
  * Session notification scheduler.
- * Shows toast notifications when sessions end.
- * - "Rate this session" → toast at session endTime
- * - Replays: handled separately via polling replays.json
+ *
+ * All session times are in Europe/Paris (Cannes timezone).
+ * Notifications:
+ *   - H-1: "Your session starts in 1h" → 1 hour before startTime
+ *   - End: "Rate this session" → at endTime
+ *   - Side events (no endTime): end-of-day notification at 19:00 Cannes time
+ *
+ * Polling-based: checks every 60s which notifications should fire,
+ * instead of relying on long setTimeout which browsers can throttle.
  */
 
 import type { Session } from "../types";
 
-// ─── Test session (changes daily for testing) ────────────────
-// This creates a test session ending a few minutes from now.
-// In production, remove this and use the real event dates.
+// ─── Timezone ────────────────────────────────────────────────
+
+const CANNES_TZ = "Europe/Paris";
+
+/** Get current time in Cannes as a Date (with correct offset applied). */
+function nowInCannes(): Date {
+  return new Date(new Date().toLocaleString("en-US", { timeZone: CANNES_TZ }));
+}
+
+/**
+ * Parse a session date + time (HH:MM) into a timestamp (ms since epoch)
+ * in the Cannes timezone. Returns null if inputs are invalid.
+ */
+function parseCannesTime(date: string, time: string): number | null {
+  if (!date || !time) return null;
+  const [hours, minutes] = time.split(":").map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+
+  // Build a date string that will be interpreted in Cannes TZ
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const isoish = `${date}T${pad(hours)}:${pad(minutes)}:00`;
+
+  // Use Intl to find the offset for Cannes at this date
+  const utcGuess = new Date(isoish + "Z");
+  const cannesStr = utcGuess.toLocaleString("en-US", { timeZone: CANNES_TZ });
+  const cannesDate = new Date(cannesStr);
+  const offsetMs = cannesDate.getTime() - utcGuess.getTime();
+
+  // The actual UTC time for this Cannes local time
+  return utcGuess.getTime() - offsetMs;
+}
+
+/** End-of-day in Cannes (19:00) for a given date string "YYYY-MM-DD" */
+function endOfDayCannes(date: string): number | null {
+  return parseCannesTime(date, "19:00");
+}
+
+// ─── Test session ────────────────────────────────────────────
 
 export function createTestSession(): Session {
-  const now = new Date();
-  const endMinutes = now.getMinutes() + 3; // ends 3 minutes from now
-  const startMinutes = endMinutes - 20;
-
+  const now = nowInCannes();
   const pad = (n: number) => String(n).padStart(2, "0");
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+  const endMin = now.getMinutes() + 3;
+  const startMin = endMin - 20;
 
   return {
     id: "__test_session__",
     title: "[TEST] Notification Test Session",
     date: today,
-    startTime: `${pad(now.getHours())}:${pad(Math.max(0, startMinutes))}`,
-    endTime: `${pad(now.getHours())}:${pad(Math.min(59, endMinutes))}`,
+    startTime: `${pad(now.getHours())}:${pad(Math.max(0, startMin))}`,
+    endTime: `${pad(now.getHours())}:${pad(Math.min(59, endMin))}`,
     stage: "Test Stage",
     stageId: "test-stage",
     track: "Core Protocol",
     type: "Talk" as const,
-    description: "This is a test session for notification scheduling. It ends 3 minutes from now.",
+    description: "Test session ending 3 minutes from now.",
     speakers: [{ name: "Test Speaker", organization: "Sofia", slug: "test-speaker" }],
   };
 }
 
-// ─── Scheduling ──────────────────────────────────────────────
+// ─── Notification types ──────────────────────────────────────
 
-interface ScheduledNotif {
+type NotifType = "h1" | "end" | "eod";
+
+interface NotifKey {
   sessionId: string;
-  sessionTitle: string;
-  endTime: Date;
-  sent: boolean;
-  timerId?: ReturnType<typeof setTimeout>;
+  type: NotifType;
 }
 
-const scheduled = new Map<string, ScheduledNotif>();
-let checkInterval: ReturnType<typeof setInterval> | null = null;
-
-/**
- * Parse a session date + endTime into a Date object.
- */
-function getEndDate(session: Session): Date | null {
-  if (!session.date || !session.endTime) return null;
-  const [hours, minutes] = session.endTime.split(":").map(Number);
-  if (isNaN(hours) || isNaN(minutes)) return null;
-  const d = new Date(session.date + "T00:00:00");
-  d.setHours(hours, minutes, 0, 0);
-  return d;
+function keyStr(k: NotifKey): string {
+  return `${k.type}:${k.sessionId}`;
 }
 
-/**
- * Schedule end-of-session notifications for a list of sessions.
- * Only schedules sessions that end in the future.
- */
-export function scheduleSessionNotifications(
+// Set of already-fired notification keys
+const fired = new Set<string>();
+
+export interface SessionNotifEvent {
+  session: Session;
+  type: NotifType;
+  message: string;
+}
+
+// ─── Compute pending notifications ──────────────────────────
+
+function computePendingNotifs(
   sessions: Session[],
-  onNotify: (session: Session) => void
-): void {
-  const now = Date.now();
+  nowMs: number
+): { key: NotifKey; session: Session; triggerMs: number }[] {
+  const pending: { key: NotifKey; session: Session; triggerMs: number }[] = [];
+  const WINDOW = 90_000; // 90s tolerance window
 
   for (const session of sessions) {
-    // Skip already scheduled
-    if (scheduled.has(session.id)) continue;
-
-    const endDate = getEndDate(session);
-    if (!endDate) continue;
-
-    const delay = endDate.getTime() - now;
-
-    // Skip sessions that already ended (more than 2 min ago)
-    if (delay < -2 * 60 * 1000) continue;
-
-    // If session ends within the next 24 hours, schedule it
-    if (delay < 24 * 60 * 60 * 1000) {
-      const effectiveDelay = Math.max(0, delay);
-
-      const entry: ScheduledNotif = {
-        sessionId: session.id,
-        sessionTitle: session.title,
-        endTime: endDate,
-        sent: false,
-      };
-
-      entry.timerId = setTimeout(() => {
-        entry.sent = true;
-        onNotify(session);
-      }, effectiveDelay);
-
-      scheduled.set(session.id, entry);
+    // H-1: 1 hour before startTime
+    const startMs = parseCannesTime(session.date, session.startTime);
+    if (startMs !== null) {
+      const h1Ms = startMs - 60 * 60 * 1000;
+      const h1Key: NotifKey = { sessionId: session.id, type: "h1" };
+      if (!fired.has(keyStr(h1Key)) && nowMs >= h1Ms && nowMs < h1Ms + WINDOW) {
+        pending.push({ key: h1Key, session, triggerMs: h1Ms });
+      }
     }
+
+    if (session.endTime) {
+      // End notification at endTime
+      const endMs = parseCannesTime(session.date, session.endTime);
+      if (endMs !== null) {
+        const endKey: NotifKey = { sessionId: session.id, type: "end" };
+        if (!fired.has(keyStr(endKey)) && nowMs >= endMs && nowMs < endMs + WINDOW) {
+          pending.push({ key: endKey, session, triggerMs: endMs });
+        }
+      }
+    } else {
+      // Side event: end-of-day notification at 19:00
+      const eodMs = endOfDayCannes(session.date);
+      if (eodMs !== null) {
+        const eodKey: NotifKey = { sessionId: session.id, type: "eod" };
+        if (!fired.has(keyStr(eodKey)) && nowMs >= eodMs && nowMs < eodMs + WINDOW) {
+          pending.push({ key: eodKey, session, triggerMs: eodMs });
+        }
+      }
+    }
+  }
+
+  return pending;
+}
+
+function buildMessage(session: Session, type: NotifType): string {
+  switch (type) {
+    case "h1":
+      return `Starts in 1h: "${session.title}" at ${session.startTime} · ${session.stage}`;
+    case "end":
+      return `How was "${session.title}"? Tap to rate`;
+    case "eod":
+      return `How was "${session.title}"? Rate this side event`;
   }
 }
 
+// ─── Public API ──────────────────────────────────────────────
+
+let pollInterval: ReturnType<typeof setInterval> | null = null;
+
 /**
- * Start a periodic check that schedules notifications for today's sessions.
- * Call once at app startup.
+ * Start the notification scheduler. Polls every 60s.
+ * Only notifies for sessions in the provided list (user's cart/published).
+ *
+ * @param sessions - Sessions to monitor (filter to user's cart before calling)
+ * @param onNotify - Callback when a notification should fire
+ * @returns cleanup function
  */
 export function startSessionNotifScheduler(
   sessions: Session[],
-  onNotify: (session: Session) => void
+  onNotify: (event: SessionNotifEvent) => void
 ): () => void {
-  // Schedule immediately
-  scheduleSessionNotifications(sessions, onNotify);
+  const check = () => {
+    const nowMs = Date.now();
+    const pending = computePendingNotifs(sessions, nowMs);
+    for (const p of pending) {
+      fired.add(keyStr(p.key));
+      onNotify({
+        session: p.session,
+        type: p.key.type,
+        message: buildMessage(p.session, p.key.type),
+      });
+    }
+  };
 
-  // Re-check every 5 minutes (for sessions that start later in the day)
-  checkInterval = setInterval(() => {
-    scheduleSessionNotifications(sessions, onNotify);
-  }, 5 * 60 * 1000);
+  check();
+  pollInterval = setInterval(check, 60_000); // every 60s
 
   return () => {
-    if (checkInterval) {
-      clearInterval(checkInterval);
-      checkInterval = null;
+    if (pollInterval) {
+      clearInterval(pollInterval);
+      pollInterval = null;
     }
-    for (const entry of scheduled.values()) {
-      if (entry.timerId) clearTimeout(entry.timerId);
-    }
-    scheduled.clear();
   };
 }
 
 /**
- * Get the status of scheduled notifications (for debugging).
+ * Get the status of fired notifications (for debugging).
  */
-export function getScheduledStatus(): { id: string; title: string; endTime: string; sent: boolean }[] {
-  return [...scheduled.values()].map((e) => ({
-    id: e.sessionId,
-    title: e.sessionTitle,
-    endTime: e.endTime.toLocaleTimeString(),
-    sent: e.sent,
-  }));
+export function getScheduledStatus(): string[] {
+  return [...fired];
 }
