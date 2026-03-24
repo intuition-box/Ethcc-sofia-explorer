@@ -47,3 +47,25 @@ query GetPositionsCount($termId: String!) {
     aggregate { count }
   }
 }`;
+
+export const GET_SESSION_ATTENDEES = /* GraphQL */ `
+query GetSessionAttendees($predicateId: String!, $sessionAtomId: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _eq: $sessionAtomId } }
+    }
+    order_by: { created_at: asc }
+  ) {
+    term_id
+    created_at
+    subject { term_id label }
+    term {
+      vaults {
+        position_count
+        total_shares
+        total_assets
+      }
+    }
+  }
+}`;

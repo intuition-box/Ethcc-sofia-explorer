@@ -2,12 +2,11 @@ import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glass, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { CartToggleButton } from "../components/shared";
-import { VibeCard } from "../components/home/VibeCard";
 import { sessions, dates } from "../data";
 import { Ic } from "../components/ui/Icons";
-// StatusBar removed - real OS handles it on mobile
-import { VIBES } from "../data/social";
 import { useCart } from "../hooks/useCart";
+import { useVibeMatches } from "../hooks/useVibeMatches";
+import { StorageService } from "../services/StorageService";
 import {
   hasEmbeddedWallet,
   getEmbeddedAddress,
@@ -173,8 +172,12 @@ export default function HomePage() {
     return sessions.filter((s) => s.date === firstDate).slice(0, 10);
   }, []);
 
-  // Online vibes
-  const onlineVibes = useMemo(() => VIBES.filter((v) => v.online), []);
+  // Real vibe matches from on-chain data
+  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const savedCart = useMemo(() => StorageService.loadCart(), []);
+  const { matches: vibeMatches, loading: vibesLoading } = useVibeMatches(
+    savedTopics, [...savedCart], walletAddress,
+  );
 
   // Embedded wallet state
   const isEmbedded = hasEmbeddedWallet() && getEmbeddedAddress() === walletAddress;
@@ -357,29 +360,43 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ── Nearby Vibes ───────────────────────────────────── */}
-      <div style={sectionHeader}>
-        <span style={sectionTitle}>Nearby Vibes</span>
-        <span
-          style={{ fontSize: 12, color: C.flat, cursor: "pointer" }}
-          onClick={() => navigate("/vibes")}
-        >
-          See all
-        </span>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          overflowX: "auto",
-          padding: "0 20px 8px",
-          scrollbarWidth: "none",
-        }}
-      >
-        {onlineVibes.map((v, idx) => (
-          <VibeCard key={idx} vibe={v} onClick={() => navigate(`/vibe/${idx}`)} />
-        ))}
-      </div>
+      {/* ── Vibe Matches (real on-chain data) ────────────── */}
+      {vibeMatches.length > 0 && (
+        <>
+          <div style={sectionHeader}>
+            <span style={sectionTitle}>Vibe Matches</span>
+            <span
+              style={{ fontSize: 12, color: C.flat, cursor: "pointer" }}
+              onClick={() => navigate("/vibes")}
+            >
+              See all
+            </span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "0 20px 8px" }}>
+            {vibeMatches.slice(0, 4).map((m) => (
+              <div key={m.subjectTermId} style={{ ...glassSurface, padding: 12, display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <div style={{ width: 40, height: 40, borderRadius: 20, background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: "#0a0a0a", flexShrink: 0 }}>
+                  {m.label.slice(2, 4).toUpperCase()}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: C.white, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {m.label.slice(0, 6)}...{m.label.slice(-4)}
+                  </div>
+                  <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                    {m.sharedTopics.join(", ")}
+                  </div>
+                </div>
+                <span style={{ fontSize: 14, fontWeight: 700, color: C.success }}>{m.matchScore}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {vibesLoading && (
+        <div style={{ padding: "16px 20px", textAlign: "center" }}>
+          <span style={{ fontSize: 13, color: C.textSecondary }}>Finding vibe matches...</span>
+        </div>
+      )}
 
       {/* ── Today's Sessions ───────────────────────────────── */}
       <div style={sectionHeader}>

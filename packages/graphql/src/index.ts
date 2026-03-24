@@ -5,4 +5,6 @@ export type {
   GetAccountPositionsQueryVariables,
   GetUserVotedPositionsQuery,
   GetUserVotedPositionsQueryVariables,
+  GetSessionAttendeesQuery,
+  GetSessionAttendeesQueryVariables,
 } from "./generated/index";

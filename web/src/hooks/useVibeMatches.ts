@@ -5,188 +5,176 @@ import { TRACK_ATOM_IDS, SESSION_ATOM_IDS, PREDICATES } from "../services/intuit
 import topicGraph from "../../../bdd/web3_topics_graph.json";
 
 const TOPIC_ATOM_IDS = topicGraph.topicAtomIds as Record<string, string>;
+const client = new GraphQLClient({ endpoint: GQL_URL });
 
 export interface VibeMatch {
   subjectTermId: string;
-  label: string; // wallet address
-  sharedTopics: string[];   // tracks + votes combined
+  label: string;
+  sharedTopics: string[];
   sharedSessions: string[];
-  matchScore: number;        // 0-100 combined score
-  trackScore: number;        // 0-100 track match
-  voteScore: number;         // 0-100 vote match
-  sessionScore: number;      // 0-100 session match
+  matchScore: number;
+  trackScore: number;
+  voteScore: number;
+  sessionScore: number;
 }
 
+// Reverse lookups
+const ATOM_TO_TRACK = new Map(Object.entries(TRACK_ATOM_IDS).map(([k, v]) => [v, k]));
+const ATOM_TO_VOTE = new Map(Object.entries(TOPIC_ATOM_IDS).map(([k, v]) => [v, k]));
+const ATOM_TO_SESSION = new Map(Object.entries(SESSION_ATOM_IDS).map(([k, v]) => [v, k]));
+
+const POLL_INTERVAL = 30_000; // 30s
+
 /**
- * Find other users who share interests, votes, and sessions.
- * - Interests: read positions on track atom vaults (position-based)
- * - Votes: read positions on topic atom vaults (position-based)
- * - Sessions: read "attending" triples (triple-based)
+ * Find users who share interests, votes, and sessions.
+ * Uses 2 flat queries (positions + triples) instead of N aliased queries.
+ * Polls every 30s for real-time discovery.
  */
 export function useVibeMatches(
   topics: Set<string>,
   sessionIds: string[],
   walletAddress: string,
-  votedTopicIds?: string[]
+  votedTopicIds?: string[],
+  refreshKey?: number
 ): { matches: VibeMatch[]; loading: boolean } {
   const [matches, setMatches] = useState<VibeMatch[]>([]);
   const [loading, setLoading] = useState(false);
-  const fetchedRef = useRef(false);
-
-  const topicsKey = [...topics].sort().join(",");
-  const sessionsKey = sessionIds.sort().join(",");
-  const votesKey = (votedTopicIds ?? []).sort().join(",");
+  const mountedRef = useRef(true);
 
   useEffect(() => {
-    if (fetchedRef.current) return;
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
+  useEffect(() => {
     const trackIds = [...topics].map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
     const voteAtomIds = (votedTopicIds ?? []).map((t) => TOPIC_ATOM_IDS[t]).filter(Boolean);
     const sessAtomIds = sessionIds.map((id) => SESSION_ATOM_IDS[id]).filter(Boolean);
+    const allAtomIds = [...trackIds, ...voteAtomIds];
 
-    if (trackIds.length === 0 && voteAtomIds.length === 0 && sessAtomIds.length === 0) return;
+    if (allAtomIds.length === 0 && sessAtomIds.length === 0) return;
     if (!walletAddress) return;
 
-    fetchedRef.current = true;
-    setLoading(true);
+    const addr = walletAddress.toLowerCase();
+    const topicList = [...topics];
+    const voteTopicList = votedTopicIds ?? [];
 
-    // Query positions on track atoms (interests)
-    const trackAliases = trackIds
-      .map(
-        (id, i) => `
-        p${i}: positions(where: {
-          term_id: { _eq: "${id}" }
-          shares: { _gt: "0" }
-        }) { account_id shares }`
-      )
-      .join("");
+    async function fetchMatches() {
+      if (!mountedRef.current) return;
+      setLoading(true);
 
-    // Query positions on topic atoms (votes)
-    const voteAliases = voteAtomIds
-      .map(
-        (id, i) => `
-        v${i}: positions(where: {
-          term_id: { _eq: "${id}" }
-          shares: { _gt: "0" }
-        }) { account_id shares }`
-      )
-      .join("");
+      try {
+        // Query 1: All positions on interest + vote atoms in ONE query
+        const positionsData = allAtomIds.length > 0
+          ? await client.request<{ positions: { account_id: string; term_id: string; shares: string }[] }>(
+              `query($ids: [String!]!) {
+                positions(where: { term_id: { _in: $ids }, shares: { _gt: "0" } }, limit: 500) {
+                  account_id term_id shares
+                }
+              }`,
+              { ids: allAtomIds }
+            )
+          : { positions: [] };
 
-    // Query attending triples (sessions)
-    const sessionAliases = sessAtomIds
-      .map(
-        (id, i) => `
-        s${i}: triples(where: {
-          predicate: { term_id: { _eq: "${PREDICATES["attending"]}" } }
-          object: { term_id: { _eq: "${id}" } }
-        }) { subject { term_id label } }`
-      )
-      .join("");
+        // Query 2: All attending triples for user's sessions in ONE query
+        const triplesData = sessAtomIds.length > 0
+          ? await client.request<{ triples: { subject: { term_id: string; label: string }; object: { term_id: string } }[] }>(
+              `query($predId: String!, $objIds: [String!]!) {
+                triples(where: {
+                  predicate: { term_id: { _eq: $predId } }
+                  object: { term_id: { _in: $objIds } }
+                }, limit: 500) {
+                  subject { term_id label }
+                  object { term_id }
+                }
+              }`,
+              { predId: PREDICATES["attending"], objIds: sessAtomIds }
+            )
+          : { triples: [] };
 
-    const query = `{ ${trackAliases} ${voteAliases} ${sessionAliases} }`;
+        if (!mountedRef.current) return;
 
-    const client = new GraphQLClient({ endpoint: GQL_URL });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    client.request<any>(query)
-      .then((data) => {
-        const topicList = [...topics];
-        const voteTopicList = votedTopicIds ?? [];
-        const addr = walletAddress.toLowerCase();
-
-        const userMap = new Map<
-          string,
-          { label: string; tracks: Set<string>; votes: Set<string>; sessions: Set<string> }
-        >();
+        // Build user map
+        const userMap = new Map<string, {
+          label: string; tracks: Set<string>; votes: Set<string>; sessions: Set<string>;
+        }>();
 
         function ensureUser(id: string, label: string) {
-          if (!userMap.has(id)) {
-            userMap.set(id, { label, tracks: new Set(), votes: new Set(), sessions: new Set() });
+          const key = id.toLowerCase();
+          if (!userMap.has(key)) {
+            userMap.set(key, { label, tracks: new Set(), votes: new Set(), sessions: new Set() });
           }
-          return userMap.get(id)!;
+          return userMap.get(key)!;
         }
 
-        // Process positions on track atoms (interests)
-        trackIds.forEach((id, i) => {
-          const positions = data[`p${i}`] ?? [];
-          const topicName = topicList.find((t) => TRACK_ATOM_IDS[t] === id) ?? "";
-          for (const pos of positions) {
-            const accountId = pos.account_id ?? "";
-            if (!accountId) continue;
-            const u = ensureUser(accountId.toLowerCase(), accountId);
-            u.tracks.add(topicName);
-          }
-        });
+        // Process positions → map to tracks or votes via reverse lookup
+        for (const pos of positionsData.positions) {
+          if (!pos.account_id) continue;
+          const trackName = ATOM_TO_TRACK.get(pos.term_id);
+          const voteName = ATOM_TO_VOTE.get(pos.term_id);
+          const u = ensureUser(pos.account_id, pos.account_id);
+          if (trackName) u.tracks.add(trackName);
+          if (voteName) u.votes.add(voteName);
+        }
 
-        // Process positions on topic atoms (votes)
-        voteAtomIds.forEach((id, i) => {
-          const positions = data[`v${i}`] ?? [];
-          const topicSlug = voteTopicList.find((t) => TOPIC_ATOM_IDS[t] === id) ?? "";
-          for (const pos of positions) {
-            const accountId = pos.account_id ?? "";
-            if (!accountId) continue;
-            const u = ensureUser(accountId.toLowerCase(), accountId);
-            u.votes.add(topicSlug);
-          }
-        });
-
-        // Process attending triples (sessions)
-        sessAtomIds.forEach((id, i) => {
-          const triples = data[`s${i}`] ?? [];
-          const sessId = sessionIds.find((sid) => SESSION_ATOM_IDS[sid] === id) ?? "";
-          for (const triple of triples) {
+        // Process triples → sessions
+        for (const triple of triplesData.triples) {
+          const sessId = ATOM_TO_SESSION.get(triple.object.term_id);
+          if (sessId) {
             const u = ensureUser(triple.subject.term_id, triple.subject.label);
             u.sessions.add(sessId);
           }
-        });
+        }
 
-        // Score per category (0-100), then weighted average
+        // Score
         const totalTracks = topicList.length;
         const totalVotes = voteTopicList.length;
         const totalSessions = sessionIds.length;
 
         const result: VibeMatch[] = [];
         for (const [id, info] of userMap) {
-          if (info.label.toLowerCase() === addr) continue;
+          if (id === addr) continue;
 
-          const trackScore = totalTracks > 0
-            ? Math.round((info.tracks.size / totalTracks) * 100) : 0;
-          const voteScore = totalVotes > 0
-            ? Math.round((info.votes.size / totalVotes) * 100) : 0;
-          const sessionScore = totalSessions > 0
-            ? Math.round((info.sessions.size / totalSessions) * 100) : 0;
+          const trackScore = totalTracks > 0 ? Math.round((info.tracks.size / totalTracks) * 100) : 0;
+          const voteScore = totalVotes > 0 ? Math.round((info.votes.size / totalVotes) * 100) : 0;
+          const sessionScore = totalSessions > 0 ? Math.round((info.sessions.size / totalSessions) * 100) : 0;
 
-          // Weighted average: tracks 40%, votes 35%, sessions 25%
-          const weights = { tracks: 0.4, votes: 0.35, sessions: 0.25 };
-          // Only count categories that the user actually has items in
-          let totalWeight = 0;
-          let weightedSum = 0;
-          if (totalTracks > 0) { weightedSum += trackScore * weights.tracks; totalWeight += weights.tracks; }
-          if (totalVotes > 0) { weightedSum += voteScore * weights.votes; totalWeight += weights.votes; }
-          if (totalSessions > 0) { weightedSum += sessionScore * weights.sessions; totalWeight += weights.sessions; }
+          let totalWeight = 0, weightedSum = 0;
+          if (totalTracks > 0) { weightedSum += trackScore * 0.4; totalWeight += 0.4; }
+          if (totalVotes > 0) { weightedSum += voteScore * 0.35; totalWeight += 0.35; }
+          if (totalSessions > 0) { weightedSum += sessionScore * 0.25; totalWeight += 0.25; }
           const matchScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
-          // Skip users with 0 match
           if (matchScore === 0) continue;
 
           result.push({
-            subjectTermId: id,
-            label: info.label,
+            subjectTermId: id, label: info.label,
             sharedTopics: [...info.tracks, ...info.votes],
             sharedSessions: [...info.sessions],
-            matchScore,
-            trackScore,
-            voteScore,
-            sessionScore,
+            matchScore, trackScore, voteScore, sessionScore,
           });
         }
 
         result.sort((a, b) => b.matchScore - a.matchScore);
-        setMatches(result);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+        if (mountedRef.current) setMatches(result);
+      } catch { /* ignore */ }
+      finally { if (mountedRef.current) setLoading(false); }
+    }
+
+    fetchMatches();
+    // Poll only when tab is visible
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchMatches();
+    }, POLL_INTERVAL);
+    return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topicsKey, sessionsKey, votesKey, walletAddress]);
+  }, [
+    [...topics].sort().join(","),
+    sessionIds.sort().join(","),
+    (votedTopicIds ?? []).sort().join(","),
+    walletAddress,
+    refreshKey,
+  ]);
 
   return { matches, loading };
 }

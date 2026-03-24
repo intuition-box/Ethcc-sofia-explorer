@@ -18426,6 +18426,22 @@ export type GetPositionsAggregateQueryVariables = Exact<{
 
 export type GetPositionsAggregateQuery = { positions_aggregate: { aggregate?: { count: number } | null } };
 
+export type GetSessionAttendeesQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  sessionAtomId: Scalars['String']['input'];
+}>;
+
+
+export type GetSessionAttendeesQuery = { triples: Array<{ term_id: string, created_at: string, subject?: { term_id: string, label?: string | null } | null, term?: { vaults: Array<{ position_count: number, total_shares: string, total_assets: string }> } | null }> };
+
+export type GetAllSessionAttendeesQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  sessionAtomIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type GetAllSessionAttendeesQuery = { triples: Array<{ term_id: string, created_at: string, object?: { term_id: string } | null, subject?: { term_id: string, label?: string | null } | null, term?: { vaults: Array<{ position_count: number, total_shares: string }> } | null }> };
+
 export type GetTriplesByPredicateQueryVariables = Exact<{
   predicateId: Scalars['String']['input'];
   objectIds: Array<Scalars['String']['input']> | Scalars['String']['input'];

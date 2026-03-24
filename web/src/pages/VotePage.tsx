@@ -239,13 +239,6 @@ const withdrawBtn: CSSProperties = {
   flexShrink: 0,
 };
 
-const perfBadge = (up: boolean): CSSProperties => ({
-  fontSize: 12,
-  fontWeight: 600,
-  color: up ? C.success : C.error,
-  marginRight: 8,
-});
-
 // ─── Component ───────────────────────────────────────
 
 type Tab = "trending" | "myvotes" | "discover";
@@ -326,16 +319,8 @@ export default function VotePage() {
     saveVotes(userVotes);
   }, [userVotes]);
 
-  // (mock sparklines removed — charts show real on-chain data only)
-
-  // Simulated vote counts
-  const voteCountMap = useMemo(() => {
-    const m = new Map<string, number>();
-    allTopics.forEach((t) => {
-      m.set(t.id, Math.floor(Math.random() * 200) + 5);
-    });
-    return m;
-  }, []);
+  // Vote counts come from real on-chain data (realDataMap)
+  // No more mock random counts
 
   // Category lookup
   const categoryMap = useMemo(() => {
@@ -355,8 +340,8 @@ export default function VotePage() {
         return Number(bAssets - aAssets);
       });
     }
-    return [...allTopics].sort((a, b) => (voteCountMap.get(b.id) ?? 0) - (voteCountMap.get(a.id) ?? 0));
-  }, [voteCountMap, hasRealData, realDataMap]);
+    return [...allTopics];
+  }, [hasRealData, realDataMap]);
 
   // My voted topics (actually in cart OR published on-chain)
   const myVotedTopics = useMemo(() => {
@@ -557,7 +542,7 @@ export default function VotePage() {
               topic={topic}
               category={categoryMap.get(topic.id)}
               realData={realDataMap.get(topic.id)}
-              mockVoteCount={voteCountMap.get(topic.id) ?? 0}
+              mockVoteCount={0}
               chartData={realChartData.get(topic.id) ?? []}
               voteState={getVoteState(topic.id)}
               voteLabel={getVoteLabel(topic.id)}
@@ -588,8 +573,7 @@ export default function VotePage() {
               const hasOnChain = rd && rd.supportCount > 0;
               const isPublished = publishedVotes.has(topic.id);
               const isPending = userVotes.has(topic.id) && !isPublished;
-              const perfUp = Math.random() > 0.3;
-              const perfPct = (Math.random() * 40 + 2).toFixed(1);
+              // No mock PnL — show real position count instead
               return (
                 <div
                   key={topic.id}
@@ -616,9 +600,11 @@ export default function VotePage() {
                   </div>
                   {isPublished && (
                     <>
-                      <span style={perfBadge(perfUp)}>
-                        {perfUp ? "+" : "-"}{perfPct}%
-                      </span>
+                      {hasOnChain && (
+                        <span style={{ fontSize: 12, fontWeight: 600, color: C.success, flexShrink: 0 }}>
+                          {formatTrust(rd.supportAssets)} T
+                        </span>
+                      )}
                       <button
                         style={{ ...withdrawBtn, opacity: withdrawing === topic.id ? 0.5 : 1 }}
                         disabled={withdrawing === topic.id}

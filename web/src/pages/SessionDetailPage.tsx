@@ -8,6 +8,9 @@ import { getReplayUrl } from "../services/replayService";
 
 import { useCart } from "../hooks/useCart";
 import { Spark } from "../components/ui/Spark";
+import { GraphQLClient, GET_SESSION_ATTENDEES, type GetSessionAttendeesQuery } from "@ethcc/graphql";
+import { GQL_URL } from "../config/constants";
+import { SESSION_ATOM_IDS, PREDICATES } from "../services/intuition";
 import type { CSSProperties } from "react";
 
 // ─── Helpers ──────────────────────────────────────────
@@ -15,24 +18,6 @@ import type { CSSProperties } from "react";
 function fmtDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-}
-
-/** Deterministic pseudo-random from session id */
-function hashNum(id: string, max: number): number {
-  let h = 0;
-  for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
-  return Math.abs(h) % max;
-}
-
-function generateSparkData(id: string): number[] {
-  const seed = hashNum(id, 10000);
-  const data: number[] = [];
-  let val = 40 + (seed % 30);
-  for (let i = 0; i < 20; i++) {
-    val += (Math.sin(seed + i * 0.7) * 8) + (Math.cos(seed * 0.3 + i) * 4);
-    data.push(Math.max(5, val));
-  }
-  return data;
 }
 
 // ─── Styles ───────────────────────────────────────────
@@ -84,20 +69,6 @@ const tagPill: CSSProperties = {
   fontWeight: 500,
   marginRight: 6,
   marginBottom: 4,
-};
-
-const statsGrid: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "1fr 1fr",
-  gap: 10,
-  padding: "0 20px",
-  marginBottom: 16,
-};
-
-const statCard: CSSProperties = {
-  ...glassSurface,
-  padding: 14,
-  textAlign: "center",
 };
 
 const infoCard: CSSProperties = {
@@ -191,10 +162,29 @@ export default function SessionDetailPage() {
     }
   }, [notifyReplay, session.id]);
 
-  const interestedCount = 12 + hashNum(session.id, 80);
-  const trendPct = 3 + hashNum(session.id + "t", 25);
-  const trendUp = hashNum(session.id + "dir", 2) === 1;
-  const sparkData = generateSparkData(session.id);
+  // Fetch real attendees from on-chain (attending triples for this session)
+  const [attendeeCount, setAttendeeCount] = useState(0);
+  const [attendeeChart, setAttendeeChart] = useState<number[]>([]);
+  const [attendeeLoading, setAttendeeLoading] = useState(true);
+
+  useEffect(() => {
+    const sessionAtomId = SESSION_ATOM_IDS[session.id];
+    if (!sessionAtomId) { setAttendeeLoading(false); return; }
+
+    const gql = new GraphQLClient({ endpoint: GQL_URL });
+    gql.request<GetSessionAttendeesQuery>(GET_SESSION_ATTENDEES, {
+      predicateId: PREDICATES["attending"],
+      sessionAtomId,
+    }).then((data) => {
+      const triples = data.triples ?? [];
+      setAttendeeCount(triples.length);
+      // Build cumulative chart: each triple created_at adds 1 attendee
+      const chart: number[] = [];
+      triples.forEach((_, i) => chart.push(i + 1));
+      setAttendeeChart(chart);
+    }).catch(() => {}).finally(() => setAttendeeLoading(false));
+  }, [session.id]);
+
   const speakerLine = session.speakers.map((sp) => sp.name).join(", ");
 
   return (
@@ -270,43 +260,32 @@ export default function SessionDetailPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={statsGrid}>
-        <div style={statCard}>
-          <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 6 }}>Interested</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-            <Ic.People s={16} c={C.primary} />
-            <span style={{ fontSize: 22, fontWeight: 700, color: C.primary }}>{interestedCount}</span>
+      {/* Interest over time (real on-chain data) */}
+      {!attendeeLoading && attendeeCount > 0 && (
+        <div style={{ padding: "0 20px", marginBottom: 20 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div style={{ ...glassSurface, padding: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 6 }}>Attending</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <Ic.People s={16} c={C.primary} />
+                <span style={{ fontSize: 22, fontWeight: 700, color: C.primary }}>{attendeeCount}</span>
+              </div>
+            </div>
+            <div style={{ ...glassSurface, padding: 14, textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 6 }}>On-chain</div>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.success }}>
+                <Ic.Check s={16} c={C.success} /> verified
+              </div>
+            </div>
           </div>
+          {attendeeChart.length > 1 && (
+            <div style={{ ...glassSurface, padding: 16 }}>
+              <div style={{ fontSize: 12, color: C.textTertiary, marginBottom: 8 }}>Interest over time</div>
+              <Spark data={attendeeChart} color={ts.color} h={48} />
+            </div>
+          )}
         </div>
-        <div style={statCard}>
-          <div style={{ fontSize: 11, color: C.textTertiary, marginBottom: 6 }}>Trend</div>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
-            {trendUp ? (
-              <Ic.ArrowUp s={14} c={C.success} />
-            ) : (
-              <Ic.ArrowDown s={14} c={C.error} />
-            )}
-            <span
-              style={{
-                fontSize: 22,
-                fontWeight: 700,
-                color: trendUp ? C.success : C.error,
-              }}
-            >
-              {trendPct}%
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Sparkline chart */}
-      <div style={{ padding: "0 20px", marginBottom: 20 }}>
-        <div style={{ ...glassSurface, padding: 16 }}>
-          <div style={{ fontSize: 12, color: C.textTertiary, marginBottom: 8 }}>Interest over time</div>
-          <Spark data={sparkData} color={ts.color} h={48} />
-        </div>
-      </div>
+      )}
 
       {/* Time & Stage info cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, padding: "0 20px", marginBottom: 20 }}>

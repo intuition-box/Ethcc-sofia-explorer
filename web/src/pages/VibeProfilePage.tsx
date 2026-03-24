@@ -1,275 +1,38 @@
 import { useMemo, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
-import { VIBES } from "../data/social";
-import type { Vibe } from "../types";
+import { Ic } from "../components/ui/Icons";
 import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
-
+import { useVibeMatches } from "../hooks/useVibeMatches";
+import { StorageService } from "../services/StorageService";
+import { STORAGE_KEYS } from "../config/constants";
 
 // ─── Styles ──────────────────────────────────────────
 
 const page: CSSProperties = {
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  background: "transparent",
-  color: C.textPrimary,
-  fontFamily: FONT,
-  overflow: "hidden",
+  flex: 1, display: "flex", flexDirection: "column",
+  background: "transparent", color: C.textPrimary, fontFamily: FONT, overflow: "hidden",
 };
-
 const header: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  padding: "12px 16px 0",
-  flexShrink: 0,
+  flexShrink: 0, display: "flex", alignItems: "center", gap: 12, padding: "12px 16px",
 };
-
 const backBtn: CSSProperties = {
-  width: 42,
-  height: 42,
-  borderRadius: 14,
-  background: C.surfaceGray,
-  border: "none",
-  color: C.textPrimary,
-  fontSize: 18,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  width: 42, height: 42, borderRadius: 14, background: C.surfaceGray,
+  border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
-
-const titleText: CSSProperties = {
-  fontSize: 20,
-  fontWeight: 700,
-  flex: 1,
-};
-
-// Avatar section
-const avatarSection: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  alignItems: "center",
-  padding: "28px 16px 20px",
-};
-
-const avatarOuter: CSSProperties = {
-  width: 88,
-  height: 88,
-  borderRadius: 44,
+const avatarStyle: CSSProperties = {
+  width: 80, height: 80, borderRadius: 40,
   background: `linear-gradient(135deg, ${C.primary}, ${C.accent})`,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  position: "relative" as const,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: 28, fontWeight: 700, color: "#0a0a0a", margin: "0 auto 12px",
 };
-
-const avatarInner: CSSProperties = {
-  width: 80,
-  height: 80,
-  borderRadius: 40,
-  background: C.surface,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 28,
-  fontWeight: 700,
-  color: C.primary,
-};
-
-const onlineIndicator = (online: boolean): CSSProperties => ({
-  position: "absolute" as const,
-  bottom: 4,
-  right: 4,
-  width: 16,
-  height: 16,
-  borderRadius: 8,
-  background: online ? C.success : C.textTertiary,
-  border: `3px solid ${C.background}`,
-});
-
-const nameText: CSSProperties = {
-  fontSize: 22,
-  fontWeight: 700,
-  marginTop: 14,
-};
-
-const addrText: CSSProperties = {
-  fontSize: 12,
-  color: C.textSecondary,
-  marginTop: 4,
-};
-
-const statusRow: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  marginTop: 8,
-};
-
-const statusBadge = (online: boolean): CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  padding: "4px 10px",
-  borderRadius: R.btn,
-  background: online ? C.successLight : "rgba(255,255,255,0.06)",
-  color: online ? C.success : C.textTertiary,
-  fontSize: 11,
-  fontWeight: 600,
-});
-
-const distBadge: CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 4,
-  padding: "4px 10px",
-  borderRadius: R.btn,
-  background: C.primaryLight,
-  color: C.primary,
-  fontSize: 11,
-  fontWeight: 600,
-};
-
-// Stats
-const statsRow: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-around",
-  padding: "16px",
-  margin: "0 16px",
-  ...glassSurface,
-};
-
-const statItem: CSSProperties = {
-  textAlign: "center" as const,
-  flex: 1,
-};
-
-const statVal: CSSProperties = {
-  fontSize: 22,
-  fontWeight: 700,
-};
-
-const statLabel: CSSProperties = {
-  fontSize: 11,
-  color: C.textSecondary,
-  marginTop: 2,
-};
-
-// Shared interests
 const sectionTitle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  padding: "24px 16px 12px",
+  fontSize: 15, fontWeight: 700, color: C.textPrimary, padding: "20px 16px 10px",
 };
-
-const interestPills: CSSProperties = {
-  display: "flex",
-  flexWrap: "wrap",
-  gap: 8,
-  padding: "0 16px 16px",
-};
-
-const interestPill = (color: string): CSSProperties => ({
-  padding: "8px 16px",
-  borderRadius: R.btn,
-  background: `${color}18`,
-  color: color,
-  fontSize: 13,
-  fontWeight: 600,
-  border: `1px solid ${color}33`,
-  display: "flex",
-  alignItems: "center",
-  gap: 6,
-});
-
-// Intuition card
-const intuitionCard: CSSProperties = {
-  ...glassSurface,
-  margin: "0 16px 16px",
-  padding: 16,
-};
-
-const intuitionHeader: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  marginBottom: 12,
-};
-
-const intuitionIcon: CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: 18,
-  background: C.primaryLight,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 18,
-};
-
-const intuitionTitle: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 700,
-};
-
-const intuitionSub: CSSProperties = {
-  fontSize: 11,
-  color: C.textSecondary,
-  marginTop: 1,
-};
-
-const intuitionRow: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  padding: "6px 0",
-  borderBottom: `1px solid ${C.border}`,
-};
-
-const intuitionLabel: CSSProperties = {
-  fontSize: 12,
-  color: C.textSecondary,
-};
-
-const intuitionValue: CSSProperties = {
-  fontSize: 12,
-  color: C.textPrimary,
-  fontWeight: 600,
-};
-
-// Action buttons
-const actionRow: CSSProperties = {
-  display: "flex",
-  gap: 12,
-  padding: "8px 16px 24px",
-};
-
-const connectBtn: CSSProperties = {
-  flex: 1,
-  height: 48,
-  borderRadius: R.btn,
-  background: C.flat,
-  color: "#0a0a0a",
-  fontSize: 15,
-  fontWeight: 600,
-  border: "none",
-  cursor: "pointer",
-  fontFamily: FONT,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-};
-
-
-// Not found
-const notFound: CSSProperties = {
-  ...glassSurface,
-  margin: "40px 16px",
-  padding: 32,
-  textAlign: "center" as const,
+const socialRow: CSSProperties = {
+  ...glassSurface, margin: "0 16px 8px", padding: "12px 16px",
+  display: "flex", alignItems: "center", gap: 12,
 };
 
 // ─── Component ───────────────────────────────────────
@@ -278,181 +41,134 @@ export default function VibeProfilePage() {
   const navigate = useNavigate();
   const { index } = useParams<{ index: string }>();
 
-  const vibe: Vibe | undefined = useMemo(() => {
-    const idx = parseInt(index ?? "", 10);
-    if (isNaN(idx) || idx < 0 || idx >= VIBES.length) return undefined;
-    return VIBES[idx];
-  }, [index]);
+  // Load real vibe matches
+  const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
+  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const savedCart = useMemo(() => StorageService.loadCart(), []);
+  const votedTopicIds = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]") as string[]; }
+    catch { return []; }
+  }, []);
+  const { matches } = useVibeMatches(savedTopics, [...savedCart], walletAddress, votedTopicIds);
 
-  if (!vibe) {
+  // Find the match by index
+  const idx = parseInt(index ?? "", 10);
+  const match = matches[idx] ?? null;
+
+  // ENS lookup for real addresses
+  const addr = match?.label && /^0x[a-fA-F0-9]{40}$/.test(match.label) ? match.label : null;
+  const { profile: ensProfile } = useEnsProfile(addr);
+  const socialLinks = ensProfile ? getSocialLinks(ensProfile) : [];
+
+  if (!match) {
     return (
       <div style={page}>
         <div style={header}>
-          <button style={backBtn} onClick={() => navigate(-1)}>
-            &#8249;
-          </button>
-          <div style={titleText}>Profile</div>
+          <button style={backBtn} onClick={() => navigate(-1)}><Ic.Back c={C.textPrimary} /></button>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Profile</div>
         </div>
-        <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-        <div style={notFound}>
+        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", padding: 24 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>&#128566;</div>
           <div style={{ fontSize: 16, fontWeight: 600 }}>User not found</div>
           <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 6 }}>
-            This vibe profile doesn't exist.
+            {matches.length === 0 ? "No vibe matches yet — publish your profile first." : "This profile doesn't exist."}
           </div>
-        </div>
         </div>
       </div>
     );
   }
 
-  const initials = vibe.name.slice(0, 2).toUpperCase();
-
-  // ENS lookup — works for real addresses (0x...), not mock ones
-  const realAddr = /^0x[a-fA-F0-9]{40}$/.test(vibe.addr) ? vibe.addr : null;
-  const { profile: ensProfile, loading: ensLoading } = useEnsProfile(realAddr);
-  const ensSocialLinks = ensProfile ? getSocialLinks(ensProfile) : [];
-
-  // Fallback to mock socials if no ENS
-  const mockSocialLinks: { label: string; url: string; icon: string }[] = [];
-  if (vibe.socials) {
-    if (vibe.socials.github) mockSocialLinks.push({ label: vibe.socials.github, url: `https://github.com/${vibe.socials.github}`, icon: "🐙" });
-    if (vibe.socials.twitter) {
-      const handle = vibe.socials.twitter.startsWith("@") ? vibe.socials.twitter.slice(1) : vibe.socials.twitter;
-      mockSocialLinks.push({ label: `@${handle}`, url: `https://x.com/${handle}`, icon: "𝕏" });
-    }
-    if (vibe.socials.discord) mockSocialLinks.push({ label: vibe.socials.discord, url: "#", icon: "💬" });
-    if (vibe.socials.url) mockSocialLinks.push({ label: vibe.socials.url.replace(/^https?:\/\//, ""), url: vibe.socials.url, icon: "🌐" });
-  }
-
-  const socialLinks = ensSocialLinks.length > 0 ? ensSocialLinks : mockSocialLinks;
+  const shortAddr = match.label.startsWith("0x")
+    ? `${match.label.slice(0, 6)}...${match.label.slice(-4)}`
+    : match.label;
+  const initials = match.label.slice(2, 4).toUpperCase();
 
   return (
     <div style={page}>
-      {/* Header */}
       <div style={header}>
-        <button style={backBtn} onClick={() => navigate(-1)}>
-          &#8249;
-        </button>
-        <div style={titleText}>Profile</div>
+        <button style={backBtn} onClick={() => navigate(-1)}><Ic.Back c={C.textPrimary} /></button>
+        <div style={{ fontSize: 18, fontWeight: 700 }}>Vibe Profile</div>
       </div>
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch" }}>
-
-      {/* Avatar + Info */}
-      <div style={avatarSection}>
-        <div style={avatarOuter}>
-          <div style={avatarInner}>{initials}</div>
-          <div style={onlineIndicator(vibe.online)} />
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24 }}>
+        {/* Avatar + Name */}
+        <div style={{ textAlign: "center", padding: "20px 16px" }}>
+          <div style={avatarStyle}>{initials}</div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: C.white, fontFamily: "monospace" }}>{shortAddr}</div>
+          {ensProfile?.name && (
+            <div style={{ fontSize: 14, color: C.primary, marginTop: 4 }}>{ensProfile.name}</div>
+          )}
+          <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 16 }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.success }}>{match.matchScore}</div>
+              <div style={{ fontSize: 11, color: C.textSecondary }}>Shared</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: C.white }}>{match.sharedTopics.length}</div>
+              <div style={{ fontSize: 11, color: C.textSecondary }}>Topics</div>
+            </div>
+          </div>
         </div>
-        <div style={nameText}>{ensProfile?.name ?? vibe.name}</div>
-        {socialLinks.length > 0 ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 8 }}>
+
+        {/* Shared Interests */}
+        {match.sharedTopics.length > 0 && (
+          <>
+            <div style={sectionTitle}>Shared Interests</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" }}>
+              {match.sharedTopics.map((topic) => {
+                const ts = getTrackStyle(topic);
+                return (
+                  <span key={topic} style={{
+                    display: "inline-flex", alignItems: "center", gap: 6,
+                    padding: "6px 12px", borderRadius: R.btn, fontSize: 12, fontWeight: 500,
+                    background: `${ts.color}22`, color: ts.color,
+                  }}>
+                    {ts.icon} {topic}
+                  </span>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        {/* Social Profiles (from ENS) */}
+        {socialLinks.length > 0 && (
+          <>
+            <div style={sectionTitle}>Social Profiles</div>
             {socialLinks.map((link) => (
-              <a
-                key={link.label}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex", alignItems: "center", gap: 6,
-                  padding: "6px 12px", borderRadius: R.btn,
-                  background: C.surfaceGray, border: `1px solid ${C.border}`,
-                  textDecoration: "none", color: C.textSecondary, fontSize: 12, fontWeight: 600,
-                }}
-              >
-                <span style={{ fontSize: 16 }}>{link.icon}</span>
-                {link.label}
+              <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                <div style={socialRow}>
+                  <span style={{ fontSize: 20 }}>{link.icon}</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary }}>{link.label}</div>
+                  </div>
+                  <Ic.Right s={16} c={C.textTertiary} />
+                </div>
               </a>
             ))}
-          </div>
-        ) : !ensLoading && socialLinks.length === 0 && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6, opacity: 0.5 }}>
-            <span style={{ fontSize: 12, color: C.textTertiary }}>No socials</span>
+          </>
+        )}
+        {socialLinks.length === 0 && (
+          <div style={{ ...glassSurface, margin: "16px 16px 0", padding: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 13, color: C.textSecondary }}>No ENS profile found for this address.</div>
           </div>
         )}
-        <div style={addrText}>{vibe.addr}</div>
-        <div style={statusRow}>
-          <div style={statusBadge(vibe.online)}>
-            <span style={{ fontSize: 8 }}>&#9679;</span>
-            {vibe.online ? "Online" : "Offline"}
-          </div>
-          <div style={distBadge}>{vibe.dist} away</div>
+
+        {/* Send TRUST */}
+        <div style={{ padding: "24px 16px" }}>
+          <button
+            onClick={() => navigate("/send")}
+            style={{
+              width: "100%", height: 48, borderRadius: R.btn,
+              background: C.flat, color: "#0a0a0a", fontSize: 15, fontWeight: 600,
+              border: "none", cursor: "pointer", fontFamily: FONT,
+              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            }}
+          >
+            <Ic.Send s={18} c="#0a0a0a" /> Send $TRUST
+          </button>
         </div>
       </div>
-
-      {/* Stats */}
-      <div style={statsRow}>
-        <div style={statItem}>
-          <div style={{ ...statVal, color: C.success }}>{vibe.pct}%</div>
-          <div style={statLabel}>Match</div>
-        </div>
-        <div style={statItem}>
-          <div style={statVal}>{vibe.shared.length}</div>
-          <div style={statLabel}>Shared</div>
-        </div>
-        <div style={statItem}>
-          <div style={{ ...statVal, color: C.primary }}>{vibe.dist}</div>
-          <div style={statLabel}>Distance</div>
-        </div>
-      </div>
-
-      {/* Shared Interests */}
-      <div style={sectionTitle}>Shared Interests</div>
-      <div style={interestPills}>
-        {vibe.shared.map((interest) => {
-          const ts = getTrackStyle(interest);
-          return (
-            <div key={interest} style={interestPill(ts.color)}>
-              <span>{ts.icon}</span>
-              {interest}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Intuition Card */}
-      <div style={sectionTitle}>Intuition Profile</div>
-      <div style={intuitionCard}>
-        <div style={intuitionHeader}>
-          <div style={intuitionIcon}>&#9830;</div>
-          <div>
-            <div style={intuitionTitle}>On-Chain Identity</div>
-            <div style={intuitionSub}>Verified via Intuition Protocol</div>
-          </div>
-        </div>
-        <div style={intuitionRow}>
-          <span style={intuitionLabel}>Chain</span>
-          <span style={intuitionValue}>Intuition (1155)</span>
-        </div>
-        <div style={intuitionRow}>
-          <span style={intuitionLabel}>Triples</span>
-          <span style={intuitionValue}>{vibe.shared.length + Math.floor(Math.random() * 5 + 3)}</span>
-        </div>
-        <div style={intuitionRow}>
-          <span style={intuitionLabel}>Attestations</span>
-          <span style={intuitionValue}>{Math.floor(Math.random() * 12 + 2)}</span>
-        </div>
-        <div style={{ ...intuitionRow, borderBottom: "none" }}>
-          <span style={intuitionLabel}>Trust Score</span>
-          <span style={{ ...intuitionValue, color: C.success }}>
-            {(vibe.pct * 0.1 + Math.random() * 2).toFixed(1)}
-          </span>
-        </div>
-      </div>
-
-      {/* Send Trust */}
-      <div style={actionRow}>
-        <button
-          style={connectBtn}
-          onClick={() => navigate("/send")}
-        >
-          Send $TRUST
-        </button>
-      </div>
-
-      </div>{/* end scrollable content */}
     </div>
   );
 }

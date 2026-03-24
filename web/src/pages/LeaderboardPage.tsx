@@ -2,7 +2,6 @@ import { useState, useEffect, type CSSProperties } from "react";
 import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, glassSurface, FONT } from "../config/theme";
-import { LEADERBOARD } from "../data/social";
 import { fetchLeaderboard, type LeaderboardEntry } from "../services/leaderboardService";
 
 
@@ -269,7 +268,7 @@ export default function LeaderboardPage() {
     }
   }, [walletAddr]);
 
-  // Use live data if available, fallback to mock
+  // Use live data only — no mock fallback
   const leaderboard = liveData
     ? liveData.map((e) => ({
         name: e.label,
@@ -281,7 +280,7 @@ export default function LeaderboardPage() {
         rank: e.rank,
         isMe: e.address.toLowerCase() === walletAddr,
       }))
-    : LEADERBOARD;
+    : [];
 
   const top3 = leaderboard.filter((u) => u.rank <= 3);
   const rest = leaderboard.filter((u) => u.rank > 3);

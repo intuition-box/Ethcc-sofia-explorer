@@ -1,5 +1,4 @@
 import { C, glassSurface, btnPill, getTrackStyle } from "../../config/theme";
-import { VIBES } from "../../data/social";
 import { SplashBg } from "../ui/SplashBg";
 import { CBends } from "../ui/CBends";
 import { explorerTxUrl } from "../../config/constants";
@@ -22,7 +21,6 @@ export function Step7Success({
   selectedTracks, txHash, vibeMatchesData, vibeLoading,
   canInstall, installed, promptInstall, onComplete,
 }: Props) {
-  const staticVibeMatches = VIBES.filter((v) => v.shared.some((s) => selectedTracks.has(s))).slice(0, 4);
   const cbendItems = [...selectedTracks].map((name) => ({ c: getTrackStyle(name).color, v: 1 }));
 
   return (
@@ -75,22 +73,10 @@ export function Step7Success({
           </div>
         )}
 
-        {/* Fallback static vibes */}
-        {!vibeLoading && vibeMatchesData.length === 0 && staticVibeMatches.length > 0 && (
+        {/* No matches yet */}
+        {!vibeLoading && vibeMatchesData.length === 0 && (
           <div className={styles.section}>
-            <p className={styles.sectionTitle}>Vibe Matches</p>
-            <div className={styles.vibeList}>
-              {staticVibeMatches.map((v, i) => (
-                <div key={i} className={`${shared.glass} ${styles.vibeCard}`} style={glassSurface}>
-                  <div className={styles.vibeAvatar}>{v.name.slice(0, 2).toUpperCase()}</div>
-                  <div className={styles.vibeInfo}>
-                    <div className={styles.vibeName}>{v.name}</div>
-                    <div className={styles.vibeShared}>{v.shared.join(", ")}</div>
-                  </div>
-                  <span className={styles.vibeScore}>{v.pct}%</span>
-                </div>
-              ))}
-            </div>
+            <p className={styles.sectionTitle}>Vibe matches will appear after others publish their profiles.</p>
           </div>
         )}
       </div>
