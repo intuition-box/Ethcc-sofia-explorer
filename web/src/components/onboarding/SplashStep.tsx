@@ -25,6 +25,10 @@ export function SplashStep({ onNext }: Props) {
 
   const handleUnlock = async () => {
     if (!password) return;
+    if (!hasWallet) {
+      setError("No wallet found on this device. Please use Get Started to create one.");
+      return;
+    }
     setUnlocking(true);
     setError("");
     const ok = await embeddedCtx.unlock(password);
@@ -91,19 +95,17 @@ export function SplashStep({ onNext }: Props) {
           <button className={styles.startBtn} style={{ margin: "0 0 10px", width: "100%" }} onClick={onNext}>
             Get Started
           </button>
-          {hasWallet && (
-            <button
-              onClick={() => setShowUnlock(true)}
-              style={{
-                width: "100%", padding: "14px 0",
-                background: "none", border: `1px solid ${C.border}`, borderRadius: 28,
-                color: C.textPrimary, fontSize: 14, fontWeight: 600,
-                cursor: "pointer", fontFamily: FONT,
-              }}
-            >
-              I already have a wallet
-            </button>
-          )}
+          <button
+            onClick={() => setShowUnlock(true)}
+            style={{
+              width: "100%", padding: "14px 0",
+              background: "none", border: `1px solid ${C.border}`, borderRadius: 28,
+              color: C.textPrimary, fontSize: 14, fontWeight: 600,
+              cursor: "pointer", fontFamily: FONT,
+            }}
+          >
+            {hasWallet ? "Unlock my wallet" : "I already have a wallet"}
+          </button>
         </div>
       )}
     </SplashBg>
