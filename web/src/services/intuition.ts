@@ -140,6 +140,13 @@ function buildWalletConnection(
   return { provider, signer, proxy, multiVault, address, ethers };
 }
 
+// ─── Helpers ─────────────────────────────────────────────────────
+
+/** Mirrors SofiaFeeProxy._countNonZero — count assets > 0 */
+function countNonZero(assets: bigint[]): bigint {
+  return BigInt(assets.filter(a => a > 0n).length);
+}
+
 // ─── Proxy approval ──────────────────────────────────────────────
 
 /**
@@ -200,13 +207,15 @@ export async function ensureUserAtom(
       ethersLib.toUtf8Bytes(address.toLowerCase())
     );
     const atomCost = await multiVault.getAtomCost();
-    // assets=[0n] → depositCount=0, totalDeposit=0 — proxy fee will be 0
-    const totalCost = await proxy.getTotalCreationCost(0n, 0n, atomCost);
+    const assets = [0n];
+    const totalCost = await proxy.getTotalCreationCost(
+      countNonZero(assets), 0n, atomCost
+    );
 
     const tx = await proxy.createAtoms(
       address,
       [atomData],
-      [0n],
+      assets,
       CHAIN_CONFIG.CURVE_ID,
       { value: totalCost }
     );
@@ -276,8 +285,8 @@ export async function createProfileTriples(
   const n = BigInt(triples.length);
   const totalDeposit = deposit * n;
   const multiVaultCost = (tripleCost * n) + totalDeposit;
-  // n = depositCount (all deposits are non-zero since deposit > 0)
-  const totalCost = await proxy.getTotalCreationCost(n, totalDeposit, multiVaultCost);
+  // Must match proxy _countNonZero(assets) — not assets.length
+  const totalCost = await proxy.getTotalCreationCost(countNonZero(assets), totalDeposit, multiVaultCost);
 
   // Verify all atoms exist on-chain before calling createTriples
   const allIds = [...new Set([...subjectIds, ...predicateIds, ...objectIds])];
@@ -311,15 +320,15 @@ export async function createProfileTriples(
  */
 export async function depositOnAtoms(
   wallet: WalletConnection,
-  atomIds: string[],
+  termIds: string[],
   depositPerAtom?: bigint,
   onStep?: (step: string) => void
 ): Promise<{ hash: string; blockNumber: number }> {
-  if (atomIds.length === 0) throw new Error("No atoms to deposit on.");
+  if (termIds.length === 0) throw new Error("No terms to deposit on.");
 
   const deposit = depositPerAtom ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-  const n = BigInt(atomIds.length);
-  const totalDeposit = deposit * n;
+  const assets = termIds.map(() => deposit);
+  const totalDeposit = deposit * BigInt(termIds.length);
 
   // Approve proxy on MultiVault (required before any proxy operation)
   onStep?.("Approving proxy...");
@@ -327,15 +336,15 @@ export async function depositOnAtoms(
     await approveProxy(wallet.multiVault);
   } catch { /* already approved */ }
 
-  // Let the proxy calculate the fee
-  const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
+  // depositBatch uses termIds.length for fixed fee (NOT countNonZero)
+  const fee: bigint = await wallet.proxy.calculateDepositFee(
+    BigInt(termIds.length), totalDeposit
+  );
 
-  onStep?.(`Depositing on ${atomIds.length} atom${atomIds.length > 1 ? "s" : ""}...`);
+  onStep?.(`Depositing on ${termIds.length} term${termIds.length > 1 ? "s" : ""}...`);
 
-  const termIds = atomIds;
-  const curveIds = atomIds.map(() => CHAIN_CONFIG.CURVE_ID);
-  const assets = atomIds.map(() => deposit);
-  const minShares = atomIds.map(() => 0n);
+  const curveIds = termIds.map(() => CHAIN_CONFIG.CURVE_ID);
+  const minShares = termIds.map(() => 0n);
 
   const tx = await wallet.proxy.depositBatch(
     wallet.address,
@@ -375,9 +384,10 @@ export async function estimateFees(
   const tripleCost = await multiVault.getTripleCost();
   const deposit = depositPerTriple ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
   const n = BigInt(tripleCount);
+  const assets = Array.from({ length: tripleCount }, () => deposit);
   const totalDeposit = deposit * n;
   const multiVaultCost = (tripleCost * n) + totalDeposit;
-  const totalCost: bigint = await proxy.getTotalCreationCost(n, totalDeposit, multiVaultCost);
+  const totalCost: bigint = await proxy.getTotalCreationCost(countNonZero(assets), totalDeposit, multiVaultCost);
   const sofiaFee = totalCost - multiVaultCost;
 
   return { tripleCost, depositPerTriple: deposit, sofiaFee, totalCost };

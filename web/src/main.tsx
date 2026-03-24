@@ -2,6 +2,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ErrorBoundary } from "./components/ui/ErrorBoundary";
+import { EmbeddedWalletProvider } from "./contexts/EmbeddedWalletContext";
 import App from "./App";
 
 // Initialize AppKit (multi-wallet: MetaMask, WalletConnect, Coinbase)
@@ -28,6 +29,7 @@ import RateSessionPage from "./pages/RateSessionPage";
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ErrorBoundary>
+      <EmbeddedWalletProvider>
       <BrowserRouter>
         <Routes>
           <Route element={<App />}>
@@ -60,6 +62,7 @@ createRoot(document.getElementById("root")!).render(
           </Route>
         </Routes>
       </BrowserRouter>
+      </EmbeddedWalletProvider>
     </ErrorBoundary>
   </StrictMode>
 );

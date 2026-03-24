@@ -26,6 +26,7 @@ import {
   deleteEmbeddedWallet,
 } from "../services/embeddedWallet";
 import { Ic } from "../components/ui/Icons";
+import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 
 // ─── Styles ─────────────────────────────────────────────────────
 const page: CSSProperties = {
@@ -104,6 +105,7 @@ const bottomBar: CSSProperties = {
 // ─── Component ──────────────────────────────────────────────────
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const embeddedCtx = useEmbeddedWallet();
   const [step, setStep] = useState(0);
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
@@ -208,7 +210,7 @@ export default function OnboardingPage() {
       // Connect wallet immediately so QR code shows right away
       const conn = await connectEmbeddedWallet(pw);
       setEmbeddedWallet(conn);
-      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
+      embeddedCtx.setWalletDirectly(conn, address);
 
       // Fetch balance (non-blocking)
       try {
@@ -233,7 +235,7 @@ export default function OnboardingPage() {
       setEmbeddedWallet(conn);
       setEmbeddedAddress(conn.address);
       setEmbeddedMode("none");
-      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, conn.address);
+      embeddedCtx.setWalletDirectly(conn, conn.address);
 
       // Fetch balance
       try {

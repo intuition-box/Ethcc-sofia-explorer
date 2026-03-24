@@ -16,6 +16,7 @@ import {
   markBackupDone,
 } from "../services/embeddedWallet";
 import { STORAGE_KEYS } from "../config/constants";
+import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 
 // ─── Styles ─────────────────────────────────────────────────────
 const page: CSSProperties = {
@@ -150,33 +151,20 @@ export default function HomePage() {
   const [walletAddress, setWalletAddress] = useState<string>(() =>
     localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? ""
   );
-  const [trustBalance, setTrustBalance] = useState<string>("0.000");
+  const embeddedCtx = useEmbeddedWallet();
+  const trustBalance = embeddedCtx.balance ?? "0.000";
 
   // Re-check localStorage when page becomes visible (coming back from BuyTrust, etc.)
   useEffect(() => {
     const handleFocus = () => {
       const saved = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
       setWalletAddress(saved);
+      embeddedCtx.refreshBalance();
     };
     window.addEventListener("focus", handleFocus);
-    // Also check on mount in case navigated back via router
     handleFocus();
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
-
-  // Try to fetch balance if we have an address
-  useEffect(() => {
-    if (!walletAddress) return;
-    import("ethers").then(({ ethers }) => {
-      const provider = new ethers.JsonRpcProvider("https://rpc.intuition.systems/http");
-      provider
-        .getBalance(walletAddress)
-        .then((bal) => {
-          setTrustBalance(ethers.formatEther(bal));
-        })
-        .catch(() => {});
-    });
-  }, [walletAddress]);
 
   // Today's sessions: filter by first available date
   const todaySessions = useMemo(() => {
@@ -200,15 +188,12 @@ export default function HomePage() {
 
   const handleUnlock = async () => {
     setUnlockError("");
-    try {
-      const conn = await connectEmbeddedWallet(unlockPassword);
+    const ok = await embeddedCtx.unlock(unlockPassword);
+    if (ok) {
       setWalletUnlocked(true);
       setShowUnlock(false);
       setUnlockPassword("");
-      // Refresh balance
-      const bal = await conn.provider.getBalance(conn.address);
-      setTrustBalance(conn.ethers.formatEther(bal));
-    } catch {
+    } else {
       setUnlockError("Wrong password");
     }
   };

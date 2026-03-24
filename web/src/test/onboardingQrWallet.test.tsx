@@ -9,6 +9,19 @@ vi.mock("react-router-dom", () => ({
   useNavigate: () => mockNavigate,
 }));
 
+// Mock EmbeddedWalletContext
+vi.mock("../contexts/EmbeddedWalletContext", () => ({
+  useEmbeddedWallet: () => ({
+    wallet: null, address: "", balance: null, needsUnlock: false,
+    unlocking: false, error: "",
+    unlock: vi.fn(async () => true), disconnect: vi.fn(),
+    refreshBalance: vi.fn(),
+    setWalletDirectly: vi.fn((_conn: unknown, addr: string) => {
+      localStorage.setItem("ethcc-wallet-address", addr);
+    }),
+  }),
+}));
+
 // Mock CSS modules (vitest/jsdom returns undefined for .module.css)
 vi.mock("../../styles/shared.module.css", () => ({ default: {} }));
 vi.mock("../components/onboarding/WalletPickerModal.module.css", () => ({ default: {} }));

@@ -1,9 +1,10 @@
 import { useState, useMemo, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, R, glassSurface, FONT } from "../config/theme";
+import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
 import { STORAGE_KEYS } from "../config/constants";
 import { Ic } from "../components/ui/Icons";
 import { StorageService } from "../services/StorageService";
+import { sessions } from "../data";
 import { useVibeMatches } from "../hooks/useVibeMatches";
 import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
@@ -270,6 +271,57 @@ export default function ProfilePage() {
         <div style={{ margin: "4px 16px 0", fontSize: 11, color: C.textTertiary, textAlign: "center" }}>
           Loaded from ENS: {ensProfile.name}
         </div>
+      )}
+
+      {/* My Interests */}
+      {topicNames.length > 0 && (
+        <>
+          <div style={sectionTitle}>My Interests</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" }}>
+            {topicNames.map((name) => {
+              const ts = getTrackStyle(name);
+              return (
+                <span key={name} style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  padding: "6px 12px", borderRadius: R.btn, fontSize: 12, fontWeight: 500,
+                  background: `${ts.color}22`, color: ts.color, fontFamily: FONT,
+                }}>
+                  {ts.icon} {name}
+                </span>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {/* My Sessions */}
+      {savedCart.size > 0 && (
+        <>
+          <div style={sectionTitle}>My Sessions</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 16px" }}>
+            {sessions.filter((s) => savedCart.has(s.id)).map((s) => {
+              const ts = getTrackStyle(s.track);
+              const isPublished = (() => { try { return (JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]") as string[]).includes(s.id); } catch { return false; } })();
+              return (
+                <div
+                  key={s.id}
+                  onClick={() => navigate(`/session/${s.id}`)}
+                  style={{ ...glassSurface, padding: 12, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
+                >
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{ts.icon}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                    <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{s.startTime} · {s.stage}</div>
+                  </div>
+                  {isPublished
+                    ? <Ic.Check s={14} c={C.success} />
+                    : <span style={{ fontSize: 10, color: C.flat, fontWeight: 600 }}>In cart</span>
+                  }
+                </div>
+              );
+            })}
+          </div>
+        </>
       )}
 
       </div>

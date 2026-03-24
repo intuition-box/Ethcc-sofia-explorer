@@ -8,6 +8,7 @@ import { useCart } from "../hooks/useCart";
 import { StorageService } from "../services/StorageService";
 import { CHAIN_CONFIG, STORAGE_KEYS, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
 import { useWalletConnection } from "../hooks/useWalletConnection";
+import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTriples, TRACK_ATOM_IDS } from "../services/intuition";
 import { resolveTopicAtomIds } from "../services/voteService";
 
@@ -72,7 +73,10 @@ export default function CartPage() {
   const navigate = useNavigate();
   const { cart, toggleCart, clearCart } = useCart();
   const [pendingTopics, setPendingTopics] = useState<string[]>([]);
-  const { wallet, isConnected, connect: openWalletModal } = useWalletConnection();
+  const { wallet: appKitWallet, isConnected: appKitConnected, connect: openWalletModal } = useWalletConnection();
+  const embeddedCtx = useEmbeddedWallet();
+  const wallet = appKitWallet ?? embeddedCtx.wallet;
+  const isConnected = appKitConnected || !!embeddedCtx.wallet;
   const [publishing, setPublishing] = useState(false);
   const [publishStatus, setPublishStatus] = useState("");
   const [publishDone, setPublishDone] = useState(false);
@@ -507,14 +511,16 @@ export default function CartPage() {
                     }
                     if (ratingTripleIds.length > 0) {
                       const depositPerRating = wallet.ethers.parseEther("0.001");
+                      const n = BigInt(ratingTripleIds.length);
+                      const totalDeposit = depositPerRating * n;
+                      const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
                       const curveIds = ratingTripleIds.map(() => CHAIN_CONFIG.CURVE_ID);
                       const assets = ratingTripleIds.map(() => depositPerRating);
                       const minShares = ratingTripleIds.map(() => 0n);
-                      const totalValue = depositPerRating * BigInt(ratingTripleIds.length);
 
                       const tx = await wallet.proxy.depositBatch(
                         wallet.address, ratingTripleIds, curveIds, assets, minShares,
-                        { value: totalValue }
+                        { value: totalDeposit + fee }
                       );
                       await tx.wait();
                     }
