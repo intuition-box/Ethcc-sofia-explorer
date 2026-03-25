@@ -11,9 +11,8 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode; nav?: React.React
     <style>{`
       .phone-frame {
         width: 100%;
-        height: 100%;
-        background: #060a10;
-        overflow: hidden;
+        min-height: 100dvh;
+        background: #0a0a0a;
         position: relative;
         display: flex;
         flex-direction: column;
