@@ -1,11 +1,12 @@
 import React from "react";
 import { FONT } from "../../config/theme";
 
-export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const PhoneFrame: React.FC<{ children: React.ReactNode; nav?: React.ReactNode }> = ({ children, nav }) => (
   <div className="phone-frame">
     <div className="phone-content">
       {children}
     </div>
+    {nav}
 
     <style>{`
       .phone-frame {
@@ -39,7 +40,6 @@ export const PhoneFrame: React.FC<{ children: React.ReactNode }> = ({ children }
           padding-top: 0;
           padding-bottom: 0;
           box-shadow: 0 32px 64px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.04);
-          /* Desktop only: anchor fixed children to this frame, not the viewport */
           transform: translateZ(0);
         }
       }

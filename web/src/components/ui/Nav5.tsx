@@ -24,7 +24,7 @@ export const Nav5: React.FC<Nav5Props> = ({ cartCount = 0 }) => {
 
   return (
     <div style={{
-      position: "fixed", bottom: 0, left: 0, right: 0,
+      flexShrink: 0,
       minHeight: 88, paddingBottom: "env(safe-area-inset-bottom, 0px)",
       display: "flex", alignItems: "flex-start", justifyContent: "space-around",
       ...glassNav, borderTopLeftRadius: 20, borderTopRightRadius: 20,

@@ -219,7 +219,7 @@ export default function SessionDetailPage() {
       </div>
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: "calc(96px + env(safe-area-inset-bottom, 0px))" }}>
+      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24 }}>
 
       {/* Hero */}
       <div

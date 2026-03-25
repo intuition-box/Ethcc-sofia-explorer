@@ -15,6 +15,7 @@ import { C, FONT, glassSurface } from "./config/theme";
 import "./styles/globals.css";
 
 const isPWA =
+  import.meta.env.DEV ||
   (window.navigator as Navigator & { standalone?: boolean }).standalone === true ||
   window.matchMedia("(display-mode: standalone)").matches;
 
@@ -173,9 +174,8 @@ function AppContent() {
   }, []);
 
   return (
-    <PhoneFrame>
+    <PhoneFrame nav={showNav ? <Nav5 cartCount={cart.size} /> : undefined}>
       <Outlet />
-      {showNav && <Nav5 cartCount={cart.size} />}
 
       {/* Notification toast */}
       {toast && (
