@@ -21,7 +21,8 @@ export default function OnboardingPage() {
 
   // Skip onboarding if already completed (PWA install, page refresh)
   useEffect(() => {
-    const hasOnboarded = localStorage.getItem(STORAGE_KEYS.ONBOARDED) === "1"
+    const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET
+      || localStorage.getItem(STORAGE_KEYS.ONBOARDED) === "1"
       || StorageService.loadTopics().size > 0;
     if (hasOnboarded) navigate("/home", { replace: true });
   }, [navigate]);
@@ -29,6 +30,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [selectedTracks, setSelectedTracks] = useState<Set<string>>(new Set());
   const [selectedSessions, setSelectedSessions] = useState<Set<string>>(new Set());
+  const [nickname, setNickname] = useState(() => localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? "");
 
   const w = useOnboardingWallet();
   const { txState, txHash, publish } = useOnboardingPublish();
@@ -59,6 +61,7 @@ export default function OnboardingPage() {
 
   const handlePublish = () => {
     if (!w.effectiveWallet) return;
+    if (nickname.trim()) localStorage.setItem(STORAGE_KEYS.NICKNAME, nickname.trim());
     publish(w.effectiveWallet, selectedTracks, selectedSessions, {
       setTxError: w.setTxError,
       setTxStatus: w.setTxStatus,
@@ -114,6 +117,8 @@ export default function OnboardingPage() {
           selectedSessions={selectedSessions}
           walletState={walletState}
           w={w}
+          nickname={nickname}
+          onNicknameChange={(v: string) => setNickname(v)}
           onBack={() => setStep(5)}
           onPublish={handlePublish}
           onSkip={() => {

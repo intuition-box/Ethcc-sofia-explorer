@@ -1,13 +1,27 @@
 import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
-import { sessions, dates, trackNames } from "../data";
+import { sessions, dates, trackNames, tracks } from "../data";
 import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
 import { StorageService } from "../services/StorageService";
 import { STORAGE_KEYS } from "../config/constants";
 import { SessionCard } from "../components/session/SessionCard";
 import { CartToggleButton } from "../components/shared";
+import {
+  scrollContent,
+  fluidContent,
+  cardTitle,
+  metaText,
+  modalOverlay,
+  modalSheet,
+  modalHeader,
+  modalTitleRow,
+  modalDesc,
+  modalScrollArea,
+  closeBtn,
+  iconBox,
+} from "../styles/common";
 
 // ─── Helpers ──────────────────────────────────────────
 
@@ -29,8 +43,6 @@ const page: CSSProperties = {
   color: C.textPrimary,
   overflow: "hidden",
 };
-
-// header inlined - color block is now a fixed absolute div
 
 const searchBar: CSSProperties = {
   display: "flex",
@@ -76,10 +88,259 @@ const pillBase: CSSProperties = {
   flexShrink: 0,
 };
 
-// cardWrap and trackIcon removed — now using SessionCard component
-
 const sessionListWrap: CSSProperties = {
   padding: "0 20px 24px",
+};
+
+const heroBlock: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: 0,
+  right: 0,
+  height: 200,
+  background: "#cea2fd",
+  borderRadius: `0 0 ${20}px ${20}px`,
+  zIndex: 0,
+};
+
+const headerContent: CSSProperties = {
+  padding: "16px 20px 0",
+  color: "#0a0a0a",
+};
+
+const headerTitle: CSSProperties = {
+  fontSize: 60,
+  fontWeight: 900,
+  lineHeight: 1,
+  marginBottom: 20,
+};
+
+const glassToolbar: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 16px",
+  padding: 16,
+  background: "rgba(255,255,255,0.08)",
+  backdropFilter: "blur(20px)",
+  WebkitBackdropFilter: "blur(20px)",
+  boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+};
+
+const searchBarWithMargin: CSSProperties = {
+  ...searchBar,
+  marginBottom: 12,
+};
+
+const searchInputStyled: CSSProperties = {
+  ...searchInput,
+  color: C.textPrimary,
+};
+
+const pillRowWithMargin: CSSProperties = {
+  ...pillRow,
+  marginBottom: 10,
+};
+
+const pillStyle = (active: boolean): CSSProperties => ({
+  ...pillBase,
+  background: active ? C.flat : C.surfaceGray,
+  color: active ? "#0a0a0a" : C.textPrimary,
+  borderColor: active ? C.flat : "transparent",
+});
+
+const addInterestBtn: CSSProperties = {
+  marginTop: 10,
+  padding: "8px 16px",
+  borderRadius: R.btn,
+  border: `1px solid ${C.flat}`,
+  background: "transparent",
+  color: C.flat,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
+const addInterestOverlay: CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: 100,
+  background: "rgba(0,0,0,0.7)",
+  backdropFilter: "blur(8px)",
+  WebkitBackdropFilter: "blur(8px)",
+  display: "flex",
+  alignItems: "flex-end",
+  justifyContent: "center",
+};
+
+const addInterestSheet: CSSProperties = {
+  width: "100%",
+  maxWidth: 390,
+  background: C.background,
+  borderRadius: "20px 20px 0 0",
+  border: `1px solid ${C.border}`,
+  borderBottom: "none",
+  maxHeight: "70vh",
+  fontFamily: FONT,
+  display: "flex",
+  flexDirection: "column",
+  overflow: "hidden",
+};
+
+const addInterestHeader: CSSProperties = {
+  flexShrink: 0,
+  padding: "24px 24px 0",
+};
+
+const addInterestTitleRow: CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginBottom: 16,
+};
+
+const addInterestTitle: CSSProperties = {
+  fontSize: 18,
+  fontWeight: 700,
+  margin: 0,
+  fontFamily: FONT,
+};
+
+const addInterestDesc: CSSProperties = {
+  fontSize: 13,
+  color: C.textSecondary,
+  marginBottom: 16,
+  fontFamily: FONT,
+};
+
+const addInterestScrollArea: CSSProperties = {
+  flex: 1,
+  overflowY: "auto",
+  padding: "0 24px 32px",
+};
+
+const addInterestListCol: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+};
+
+const modalTopicItem = (inCart: boolean, isPublished: boolean): CSSProperties => ({
+  ...glassSurface,
+  padding: 14,
+  cursor: isPublished ? "default" : "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  border: inCart && !isPublished
+    ? `1px solid ${C.flat}44`
+    : isPublished
+      ? `1px solid ${C.success}44`
+      : undefined,
+});
+
+const modalTopicName: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: C.textPrimary,
+};
+
+const modalTopicMeta: CSSProperties = {
+  ...metaText,
+  fontSize: 11,
+};
+
+const publishedBadge: CSSProperties = {
+  color: C.success,
+  marginLeft: 6,
+};
+
+const inCartBadge: CSSProperties = {
+  color: C.flat,
+  marginLeft: 6,
+};
+
+const emptyMessage: CSSProperties = {
+  textAlign: "center",
+  color: C.textTertiary,
+  marginTop: 40,
+};
+
+// ─── Locked-track modal styles ────────────────────────
+
+const lockedModalHeaderRow: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+const lockedTrackTitle: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 700,
+  color: C.textPrimary,
+};
+
+const lockedTrackMeta: CSSProperties = {
+  fontSize: 11,
+  color: C.textSecondary,
+};
+
+const addInterestCta = (alreadyAdded: boolean): CSSProperties => ({
+  width: "100%",
+  height: 44,
+  borderRadius: R.btn,
+  background: alreadyAdded ? C.successLight : C.flat,
+  color: alreadyAdded ? C.success : "#0a0a0a",
+  fontSize: 14,
+  fontWeight: 600,
+  border: "none",
+  cursor: alreadyAdded ? "default" : "pointer",
+  fontFamily: FONT,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 6,
+  marginBottom: 16,
+});
+
+const trackSectionLabel: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: C.textTertiary,
+  marginBottom: 8,
+};
+
+const trackSessionListCol: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const trackSessionItem: CSSProperties = {
+  ...glassSurface,
+  padding: 10,
+  display: "flex",
+  alignItems: "center",
+  gap: 8,
+  opacity: 0.6,
+};
+
+const trackSessionIcon: CSSProperties = {
+  fontSize: 14,
+  flexShrink: 0,
+};
+
+const trackSessionTitle: CSSProperties = {
+  ...cardTitle,
+  fontSize: 12,
+};
+
+const trackSessionMeta: CSSProperties = {
+  fontSize: 10,
+  color: C.textSecondary,
+  marginTop: 2,
 };
 
 // ─── Component ────────────────────────────────────────
@@ -109,9 +370,14 @@ export default function AgendaPage() {
   const modalTopics = useMemo(() => trackNames, []);
 
   const [showAddInterest, setShowAddInterest] = useState(false);
-  const [selectedDay, setSelectedDay] = useState(dates[0] ?? "");
-  const [selectedType, setSelectedType] = useState<string>("All");
-  const [search, setSearch] = useState("");
+  const [lockedTrack, setLockedTrack] = useState<string | null>(null);
+  const [selectedDay, _setSelectedDay] = useState(() => sessionStorage.getItem("agenda-day") ?? dates[0] ?? "");
+  const [selectedType, _setSelectedType] = useState(() => sessionStorage.getItem("agenda-type") ?? "All");
+  const [search, _setSearch] = useState(() => sessionStorage.getItem("agenda-search") ?? "");
+
+  const setSelectedDay = (v: string) => { _setSelectedDay(v); sessionStorage.setItem("agenda-day", v); };
+  const setSelectedType = (v: string) => { _setSelectedType(v); sessionStorage.setItem("agenda-type", v); };
+  const setSearch = (v: string) => { _setSearch(v); sessionStorage.setItem("agenda-search", v); };
 
   const toggleInterest = (track: string) => {
     const next = new Set(pendingTopics);
@@ -142,31 +408,23 @@ export default function AgendaPage() {
   return (
     <div style={page}>
       {/* Fixed color background */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200, background: "#cea2fd", borderRadius: `0 0 ${20}px ${20}px`, zIndex: 0 }} />
+      <div style={heroBlock} />
 
       {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", position: "relative", zIndex: 1, paddingBottom: 24 }}>
+      <div style={scrollContent}>
       {/* Header content */}
-      <div style={{ padding: "16px 20px 0", color: "#0a0a0a" }}>
-        <div style={{ fontSize: 60, fontWeight: 900, lineHeight: 1, marginBottom: 20 }}>Agenda</div>
+      <div style={headerContent}>
+        <div style={headerTitle}>Agenda</div>
       </div>
 
       {/* Glass toolbar - search + filters */}
-      <div style={{
-        ...glassSurface,
-        margin: "0 16px 16px",
-        padding: 16,
-        background: "rgba(255,255,255,0.08)",
-        backdropFilter: "blur(20px)",
-        WebkitBackdropFilter: "blur(20px)",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      }}>
+      <div style={glassToolbar}>
         {/* Search */}
-        <div style={{ ...searchBar, marginBottom: 12 }}>
+        <div style={searchBarWithMargin}>
           <Ic.Search s={18} c={C.textSecondary} />
           <input
             className="agenda-search"
-            style={{ ...searchInput, color: C.textPrimary }}
+            style={searchInputStyled}
             placeholder="Search sessions, speakers..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -174,19 +432,14 @@ export default function AgendaPage() {
         </div>
 
         {/* Day pills */}
-        <div style={{ ...pillRow, marginBottom: 10 }}>
+        <div style={pillRowWithMargin}>
           {dates.map((d) => {
             const active = d === selectedDay;
             return (
               <button
                 key={d}
                 onClick={() => setSelectedDay(d)}
-                style={{
-                  ...pillBase,
-                  background: active ? C.flat : C.surfaceGray,
-                  color: active ? "#0a0a0a" : C.textPrimary,
-                  borderColor: active ? C.flat : "transparent",
-                }}
+                style={pillStyle(active)}
               >
                 {fmtShortDate(d)}
               </button>
@@ -202,12 +455,7 @@ export default function AgendaPage() {
               <button
                 key={t}
                 onClick={() => setSelectedType(t)}
-                style={{
-                  ...pillBase,
-                  background: active ? C.flat : C.surfaceGray,
-                  color: active ? "#0a0a0a" : C.textPrimary,
-                  borderColor: active ? C.flat : "transparent",
-                }}
+                style={pillStyle(active)}
               >
                 {t}
               </button>
@@ -219,11 +467,7 @@ export default function AgendaPage() {
         {availableTopics.length > 0 && (
           <button
             onClick={() => setShowAddInterest(!showAddInterest)}
-            style={{
-              marginTop: 10, padding: "8px 16px", borderRadius: R.btn, border: `1px solid ${C.flat}`,
-              background: "transparent", color: C.flat, fontSize: 12, fontWeight: 600,
-              cursor: "pointer", fontFamily: FONT, display: "flex", alignItems: "center", gap: 6,
-            }}
+            style={addInterestBtn}
           >
             <Ic.Plus s={14} c={C.flat} />
             Add Interest ({availableTopics.length} available)
@@ -234,41 +478,31 @@ export default function AgendaPage() {
       {/* Add Interest modal */}
       {showAddInterest && (
         <div
-          style={{
-            position: "absolute", inset: 0, zIndex: 100,
-            background: "rgba(0,0,0,0.7)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
-            display: "flex", alignItems: "flex-end", justifyContent: "center",
-          }}
+          style={addInterestOverlay}
           onClick={() => setShowAddInterest(false)}
         >
           <div
-            style={{
-              width: "100%", maxWidth: 390,
-              background: C.background, borderRadius: "20px 20px 0 0",
-              border: `1px solid ${C.border}`, borderBottom: "none",
-              maxHeight: "70vh", fontFamily: FONT,
-              display: "flex", flexDirection: "column", overflow: "hidden",
-            }}
+            style={addInterestSheet}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Fixed header */}
-            <div style={{ flexShrink: 0, padding: "24px 24px 0" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 700, margin: 0, fontFamily: FONT }}>Add Interest</h3>
+            <div style={addInterestHeader}>
+              <div style={addInterestTitleRow}>
+                <h3 style={addInterestTitle}>Add Interest</h3>
                 <button
                   onClick={() => setShowAddInterest(false)}
-                  style={{ width: 32, height: 32, borderRadius: 16, background: C.surfaceGray, border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  style={closeBtn}
                 >
                   <Ic.X s={16} c={C.textSecondary} />
                 </button>
               </div>
-              <div style={{ fontSize: 13, color: C.textSecondary, marginBottom: 16, fontFamily: FONT }}>
+              <div style={addInterestDesc}>
                 Select a topic to unlock its sessions. The interest will be added to your cart for on-chain validation.
               </div>
             </div>
             {/* Scrollable list */}
-            <div style={{ flex: 1, overflowY: "auto", padding: "0 24px 32px" }}>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={addInterestScrollArea}>
+            <div style={addInterestListCol}>
               {modalTopics.map((track) => {
                 const ts = getTrackStyle(track);
                 const sessionCount = sessions.filter((s) => s.track === track).length;
@@ -279,26 +513,17 @@ export default function AgendaPage() {
                   <div
                     key={track}
                     onClick={() => { if (!isPublished) toggleInterest(track); }}
-                    style={{
-                      ...glassSurface, padding: 14,
-                      cursor: isPublished ? "default" : "pointer",
-                      display: "flex", alignItems: "center", gap: 12,
-                      border: inCart && !isPublished ? `1px solid ${C.flat}44` : isPublished ? `1px solid ${C.success}44` : undefined,
-                    }}
+                    style={modalTopicItem(inCart, isPublished)}
                   >
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 12,
-                      background: `${ts.color}22`, display: "flex", alignItems: "center", justifyContent: "center",
-                      fontSize: 18,
-                    }}>
+                    <div style={iconBox(ts.color)}>
                       {ts.icon}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: C.textPrimary }}>{track}</div>
-                      <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                    <div style={fluidContent}>
+                      <div style={modalTopicName}>{track}</div>
+                      <div style={modalTopicMeta}>
                         {sessionCount} sessions
-                        {isPublished && <span style={{ color: C.success, marginLeft: 6 }}>· published</span>}
-                        {inCart && !isPublished && <span style={{ color: C.flat, marginLeft: 6 }}>· in cart</span>}
+                        {isPublished && <span style={publishedBadge}>· published</span>}
+                        {inCart && !isPublished && <span style={inCartBadge}>· in cart</span>}
                       </div>
                     </div>
                     <CartToggleButton
@@ -317,7 +542,7 @@ export default function AgendaPage() {
       {/* Session list */}
       <div style={sessionListWrap}>
         {filtered.length === 0 && (
-          <p style={{ textAlign: "center", color: C.textTertiary, marginTop: 40 }}>
+          <p style={emptyMessage}>
             No sessions match your filters.
           </p>
         )}
@@ -331,9 +556,16 @@ export default function AgendaPage() {
             return <SessionCard key={s.id} session={s} locked />;
           }
 
-          // Sessions whose track is not in user's interests are hidden
+          // Sessions whose track is not in user's interests — show locked
           if (!isTrackPublished && !isTrackPending && !isPublished) {
-            return null;
+            return (
+              <SessionCard
+                key={s.id}
+                session={s}
+                locked
+                onClick={() => setLockedTrack(s.track)}
+              />
+            );
           }
 
           const inCart = isPublished || cart.has(s.id);
@@ -354,6 +586,72 @@ export default function AgendaPage() {
         })}
       </div>
       </div>
+
+      {/* Add Interest Modal */}
+      {lockedTrack && (() => {
+        const ts = getTrackStyle(lockedTrack);
+        const trackInfo = tracks.find((t) => t.name === lockedTrack);
+        const trackSessions = sessions.filter((s) => s.track === lockedTrack);
+        const alreadyAdded = pendingTopics.has(lockedTrack) || publishedTopics.has(lockedTrack);
+        return (
+          <div
+            style={modalOverlay}
+            onClick={() => setLockedTrack(null)}
+          >
+            <div
+              style={modalSheet}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div style={modalHeader}>
+                <div style={modalTitleRow}>
+                  <div style={lockedModalHeaderRow}>
+                    <div style={iconBox(ts.color)}>{ts.icon}</div>
+                    <div>
+                      <div style={lockedTrackTitle}>{lockedTrack}</div>
+                      {trackInfo && <div style={lockedTrackMeta}>{trackInfo.sector} · {trackInfo.sessionCount} sessions</div>}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setLockedTrack(null)}
+                    style={closeBtn}
+                  >
+                    <Ic.X s={16} c={C.textSecondary} />
+                  </button>
+                </div>
+                <div style={modalDesc}>
+                  Add this interest to your profile to unlock {trackSessions.length} sessions and see their details.
+                </div>
+                <button
+                  onClick={() => { if (!alreadyAdded) { toggleInterest(lockedTrack); setLockedTrack(null); } }}
+                  style={addInterestCta(alreadyAdded)}
+                >
+                  {alreadyAdded
+                    ? <><Ic.Check s={16} c={C.success} /> Added to cart</>
+                    : <><Ic.Plus s={16} c="#0a0a0a" /> Add Interest</>
+                  }
+                </button>
+              </div>
+
+              {/* Session list */}
+              <div style={modalScrollArea}>
+                <div style={trackSectionLabel}>Sessions in this track</div>
+                <div style={trackSessionListCol}>
+                  {trackSessions.map((s) => (
+                    <div key={s.id} style={trackSessionItem}>
+                      <span style={trackSessionIcon}>{ts.icon}</span>
+                      <div style={fluidContent}>
+                        <div style={trackSessionTitle}>{s.title}</div>
+                        <div style={trackSessionMeta}>{s.startTime} · {s.stage}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

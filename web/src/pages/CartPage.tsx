@@ -10,7 +10,21 @@ import { CHAIN_CONFIG, STORAGE_KEYS, DEFAULT_DEPOSIT_PER_TRIPLE } from "../confi
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTriples, TRACK_ATOM_IDS } from "../services/intuition";
+import { avatarColor } from "../config/theme";
 import { resolveTopicAtomIds } from "../services/voteService";
+import {
+  scrollContent,
+  fluidContent,
+  cardTitle,
+  metaText,
+  monoText,
+  deleteBtn,
+  accentBar,
+  avatarSmall,
+  iconBoxSmall,
+  truncateLabel,
+  getInitials,
+} from "../styles/common";
 
 // ─── Icon mapping (same as VotePage) ────────────────
 const ICON_EMOJI: Record<string, string> = {
@@ -67,6 +81,76 @@ const bottomBar: CSSProperties = {
 const emptyState: CSSProperties = {
   textAlign: "center" as const, padding: "32px 20px", color: C.textTertiary, fontSize: 13,
 };
+
+const topSpacer: CSSProperties = { height: 12, flexShrink: 0 };
+
+const emptyIcon: CSSProperties = { fontSize: 40, marginBottom: 12 };
+
+const emptyTitle: CSSProperties = { fontSize: 16, fontWeight: 600, color: C.textPrimary, marginBottom: 4 };
+
+const sectionEmoji: CSSProperties = { fontSize: 16 };
+
+const interestWrap: CSSProperties = { display: "flex", flexWrap: "wrap" };
+
+const interestPill = (color: string): CSSProperties => ({
+  ...pill, background: color, color: "#fff", cursor: "pointer",
+});
+
+const topicIconBox = (color: string | undefined): CSSProperties => ({
+  width: 36, height: 36, borderRadius: R.md, flexShrink: 0,
+  background: color ? `${color}22` : C.primaryLight,
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
+});
+
+const topicTitle: CSSProperties = {
+  fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+};
+
+const topicMeta = (color: string): CSSProperties => ({
+  fontSize: 11, color, marginTop: 2,
+});
+
+const deleteBtnCentered: CSSProperties = {
+  ...deleteBtn, alignSelf: "center",
+};
+
+const sessionSpeakers: CSSProperties = {
+  fontSize: 11, color: C.textSecondary, marginTop: 2,
+  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+};
+
+const sessionTrackMeta = (color: string): CSSProperties => ({
+  fontSize: 11, color, marginTop: 2,
+});
+
+const ratingIconBox: CSSProperties = {
+  width: 36, height: 36, borderRadius: R.md, flexShrink: 0,
+  background: C.flatLight,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  fontSize: 14, fontWeight: 700, color: C.flat,
+};
+
+const summaryTitle: CSSProperties = { fontSize: 14, fontWeight: 700, marginBottom: 10 };
+
+const summaryValue = (color: string): CSSProperties => ({ color, fontWeight: 600 });
+
+const summaryTotal: CSSProperties = { fontWeight: 700, color: C.textPrimary };
+
+const summaryRowNoBorder: CSSProperties = { ...summaryRow, borderBottom: "none" };
+
+const estimatedCost: CSSProperties = { fontSize: 15, fontWeight: 800, color: C.trust };
+
+const publishErrorText: CSSProperties = {
+  fontSize: 12, color: C.error, marginBottom: 8, textAlign: "center",
+};
+
+const successBtn: CSSProperties = { ...btnPill, background: C.success, color: "#fff" };
+
+const connectBtn: CSSProperties = { ...btnPill, background: "#ffa7b1", color: "#0a0a0a" };
+
+const publishBtn = (isPublishing: boolean): CSSProperties => ({
+  ...btnPill, background: "#ffa7b1", color: "#0a0a0a", opacity: isPublishing ? 0.7 : 1,
+});
 
 // ─── Component ──────────────────────────────────────
 export default function CartPage() {
@@ -127,6 +211,15 @@ export default function CartPage() {
 
   const topicList = pendingTopics;
 
+  // Pending follows (from useFollow)
+  const cartFollows = useMemo(() => {
+    const result: string[] = [];
+    cart.forEach((id) => {
+      if (id.startsWith("follow:")) result.push(id.slice(7));
+    });
+    return result;
+  }, [cart]);
+
   // Pending ratings (from RateSessionPage)
   const pendingRatings: Record<string, number> = JSON.parse(
     localStorage.getItem(STORAGE_KEYS.RATINGS_PENDING) ?? "{}"
@@ -140,7 +233,7 @@ export default function CartPage() {
     return result;
   }, [pendingRatings, sessionMap]);
 
-  const tripleCount = topicList.length + cartSessions.length + cartTopics.length + cartRatings.length;
+  const tripleCount = topicList.length + cartSessions.length + cartTopics.length + cartRatings.length + cartFollows.length;
   const isEmpty = tripleCount === 0;
 
   // Estimate cost: deposits use calculateDepositFee, sessions use getTotalCreationCost
@@ -215,13 +308,13 @@ export default function CartPage() {
 
   return (
     <div style={page}>
-      <div style={{ height: 12, flexShrink: 0 }} />
+      <div style={topSpacer} />
 
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24 }}>
+      <div style={scrollContent}>
         {isEmpty && (
           <div style={emptyState}>
-            <div style={{ fontSize: 40, marginBottom: 12 }}>🛒</div>
-            <p style={{ fontSize: 16, fontWeight: 600, color: C.textPrimary, marginBottom: 4 }}>Cart is empty</p>
+            <div style={emptyIcon}>🛒</div>
+            <p style={emptyTitle}>Cart is empty</p>
             <p>Select interests, sessions, or vote on topics to fill your cart.</p>
           </div>
         )}
@@ -230,14 +323,14 @@ export default function CartPage() {
         {topicList.length > 0 && (
           <div style={sectionWrap}>
             <div style={sectionHead}>
-              <span style={{ fontSize: 16 }}>💜</span>
+              <span style={sectionEmoji}>💜</span>
               Interests ({topicList.length})
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap" }}>
+            <div style={interestWrap}>
               {topicList.map((t) => {
                 const ts = getTrackStyle(t);
                 return (
-                  <span key={t} style={{ ...pill, background: ts.color, color: "#fff", cursor: "pointer" }}
+                  <span key={t} style={interestPill(ts.color)}
                     onClick={() => {
                       const next = pendingTopics.filter((x) => x !== t);
                       setPendingTopics(next);
@@ -257,7 +350,7 @@ export default function CartPage() {
         {cartTopics.length > 0 && (
           <div style={sectionWrap}>
             <div style={sectionHead}>
-              <span style={{ fontSize: 16 }}>🗳️</span>
+              <span style={sectionEmoji}>🗳️</span>
               Supported Topics ({cartTopics.length})
             </div>
             {cartTopics.map((t) => {
@@ -265,28 +358,20 @@ export default function CartPage() {
               const emoji = ICON_EMOJI[cat?.icon ?? ""] ?? "📌";
               return (
                 <div key={t.id} style={card}>
-                  <div style={{
-                    width: 36, height: 36, borderRadius: R.md, flexShrink: 0,
-                    background: cat ? `${cat.color}22` : C.primaryLight,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
-                  }}>
+                  <div style={topicIconBox(cat?.color)}>
                     {emoji}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={fluidContent}>
+                    <div style={topicTitle}>
                       {t.name}
                     </div>
-                    <div style={{ fontSize: 11, color: cat?.color ?? C.textTertiary, marginTop: 2 }}>
+                    <div style={topicMeta(cat?.color ?? C.textTertiary)}>
                       {cat?.name ?? "Other"} &middot; {t.type}
                     </div>
                   </div>
                   <button
                     onClick={() => toggleCart(t.id)}
-                    style={{
-                      width: 28, height: 28, borderRadius: 14, border: "none", cursor: "pointer",
-                      background: C.errorLight, display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0, alignSelf: "center",
-                    }}
+                    style={deleteBtnCentered}
                   >
                     <Ic.Trash s={12} c={C.error} />
                   </button>
@@ -300,41 +385,33 @@ export default function CartPage() {
         {cartSessions.length > 0 && (
           <div style={sectionWrap}>
             <div style={sectionHead}>
-              <span style={{ fontSize: 16 }}>📅</span>
+              <span style={sectionEmoji}>📅</span>
               Sessions ({cartSessions.length})
             </div>
             {cartSessions.map((s) => {
               const ts = getTrackStyle(s.track);
               return (
                 <div key={s.id} style={card}>
-                  <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: ts.color, flexShrink: 0 }} />
-                  <div style={{
-                    width: 36, height: 36, borderRadius: R.md, flexShrink: 0,
-                    background: `${ts.color}22`,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16,
-                  }}>
+                  <div style={accentBar(ts.color)} />
+                  <div style={iconBoxSmall(ts.color)}>
                     {ts.icon}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={fluidContent}>
+                    <div style={cardTitle}>
                       {s.title}
                     </div>
                     {s.speakers.length > 0 && (
-                      <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <div style={sessionSpeakers}>
                         {s.speakers.map((sp) => sp.name).join(", ")}
                       </div>
                     )}
-                    <div style={{ fontSize: 11, color: ts.color, marginTop: 2 }}>
+                    <div style={sessionTrackMeta(ts.color)}>
                       {fmtDate(s.date)} &middot; {s.startTime}
                     </div>
                   </div>
                   <button
                     onClick={() => toggleCart(s.id)}
-                    style={{
-                      width: 28, height: 28, borderRadius: 14, border: "none", cursor: "pointer",
-                      background: C.errorLight, display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0, alignSelf: "center",
-                    }}
+                    style={deleteBtnCentered}
                   >
                     <Ic.Trash s={12} c={C.error} />
                   </button>
@@ -348,25 +425,21 @@ export default function CartPage() {
         {cartRatings.length > 0 && (
           <div style={sectionWrap}>
             <div style={sectionHead}>
-              <span style={{ fontSize: 16 }}>⭐</span>
+              <span style={sectionEmoji}>⭐</span>
               Ratings ({cartRatings.length})
             </div>
             {cartRatings.map(({ session: s, rating: r }) => {
               return (
                 <div key={`rate-${s.id}`} style={card}>
-                  <div style={{ width: 4, alignSelf: "stretch", borderRadius: 2, background: C.flat, flexShrink: 0 }} />
-                  <div style={{
-                    width: 36, height: 36, borderRadius: R.md, flexShrink: 0,
-                    background: C.flatLight,
-                    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 700, color: C.flat,
-                  }}>
+                  <div style={accentBar(C.flat)} />
+                  <div style={ratingIconBox}>
                     {r}/5
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <div style={fluidContent}>
+                    <div style={cardTitle}>
                       {s.title}
                     </div>
-                    <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>
+                    <div style={metaText}>
                       Deposit into {r}/5 vault
                     </div>
                   </div>
@@ -377,11 +450,51 @@ export default function CartPage() {
                       localStorage.setItem(STORAGE_KEYS.RATINGS_PENDING, JSON.stringify(p));
                       toggleCart(s.id);
                     }}
-                    style={{
-                      width: 28, height: 28, borderRadius: 14, border: "none", cursor: "pointer",
-                      background: C.errorLight, display: "flex", alignItems: "center", justifyContent: "center",
-                      flexShrink: 0, alignSelf: "center",
+                    style={deleteBtnCentered}
+                  >
+                    <Ic.Trash s={12} c={C.error} />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── Follows ────────────────────────── */}
+        {cartFollows.length > 0 && (
+          <div style={sectionWrap}>
+            <div style={sectionHead}>
+              <span style={sectionEmoji}>👤</span>
+              Following ({cartFollows.length})
+            </div>
+            {cartFollows.map((addr) => {
+              const short = truncateLabel(addr);
+              const initials = getInitials(addr);
+              return (
+                <div key={`follow-${addr}`} style={card}>
+                  <div style={accentBar(C.primary)} />
+                  <div style={avatarSmall(avatarColor(addr))}>
+                    {initials}
+                  </div>
+                  <div style={fluidContent}>
+                    <div style={monoText}>
+                      {short}
+                    </div>
+                    <div style={metaText}>
+                      Follow triple
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      toggleCart(`follow:${addr}`);
+                      // Also remove from pending follows in localStorage
+                      try {
+                        const pending = JSON.parse(localStorage.getItem("ethcc-pending-follows") ?? "[]");
+                        const next = pending.filter((f: { label: string }) => f.label.toLowerCase() !== addr.toLowerCase());
+                        localStorage.setItem("ethcc-pending-follows", JSON.stringify(next));
+                      } catch { /* ignore */ }
                     }}
+                    style={deleteBtnCentered}
                   >
                     <Ic.Trash s={12} c={C.error} />
                   </button>
@@ -394,38 +507,44 @@ export default function CartPage() {
         {/* ── Transaction summary ────────────── */}
         {tripleCount > 0 && (
           <div style={summaryCard}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>
+            <div style={summaryTitle}>
               On-Chain Summary
             </div>
             <div style={summaryRow}>
               <span>Interests</span>
-              <span style={{ color: C.textPrimary, fontWeight: 600 }}>{topicList.length}</span>
+              <span style={summaryValue(C.textPrimary)}>{topicList.length}</span>
             </div>
             <div style={summaryRow}>
               <span>Supported topics</span>
-              <span style={{ color: C.textPrimary, fontWeight: 600 }}>{cartTopics.length}</span>
+              <span style={summaryValue(C.textPrimary)}>{cartTopics.length}</span>
             </div>
             <div style={summaryRow}>
               <span>Sessions</span>
-              <span style={{ color: C.textPrimary, fontWeight: 600 }}>{cartSessions.length}</span>
+              <span style={summaryValue(C.textPrimary)}>{cartSessions.length}</span>
             </div>
             {cartRatings.length > 0 && (
               <div style={summaryRow}>
                 <span>Ratings</span>
-                <span style={{ color: C.flat, fontWeight: 600 }}>{cartRatings.length}</span>
+                <span style={summaryValue(C.flat)}>{cartRatings.length}</span>
+              </div>
+            )}
+            {cartFollows.length > 0 && (
+              <div style={summaryRow}>
+                <span>Following</span>
+                <span style={summaryValue(C.primary)}>{cartFollows.length}</span>
               </div>
             )}
             <div style={summaryRow}>
               <span>Network</span>
-              <span style={{ color: C.trust, fontWeight: 600 }}>Intuition L3 (1155)</span>
+              <span style={summaryValue(C.trust)}>Intuition L3 (1155)</span>
             </div>
             <div style={summaryRow}>
               <span>Total triples</span>
-              <span style={{ fontWeight: 700, color: C.textPrimary }}>{tripleCount}</span>
+              <span style={summaryTotal}>{tripleCount}</span>
             </div>
-            <div style={{ ...summaryRow, borderBottom: "none" }}>
+            <div style={summaryRowNoBorder}>
               <span>Estimated cost</span>
-              <span style={{ fontSize: 15, fontWeight: 800, color: C.trust }}>
+              <span style={estimatedCost}>
                 {realCost ? `~${realCost} TRUST` : `~${(tripleCount * 0.1).toFixed(1)} TRUST`}
               </span>
             </div>
@@ -436,11 +555,11 @@ export default function CartPage() {
       {tripleCount > 0 && (
         <div style={bottomBar}>
           {publishError && (
-            <div style={{ fontSize: 12, color: C.error, marginBottom: 8, textAlign: "center" }}>{publishError}</div>
+            <div style={publishErrorText}>{publishError}</div>
           )}
           {publishDone ? (
             <button
-              style={{ ...btnPill, background: C.success, color: "#fff" }}
+              style={successBtn}
               onClick={() => navigate("/vote")}
             >
               Published! View My Votes
@@ -448,7 +567,7 @@ export default function CartPage() {
           ) : !isConnected ? (
             <button
               onClick={openWalletModal}
-              style={{ ...btnPill, background: "#ffa7b1", color: "#0a0a0a" }}
+              style={connectBtn}
             >
               Connect Wallet to Publish
             </button>
@@ -553,7 +672,7 @@ export default function CartPage() {
                 }
               }}
               disabled={publishing}
-              style={{ ...btnPill, background: "#ffa7b1", color: "#0a0a0a", opacity: publishing ? 0.7 : 1 }}
+              style={publishBtn(publishing)}
             >
               {publishing ? publishStatus || "Publishing..." : "Validate & Publish On-Chain"}
             </button>

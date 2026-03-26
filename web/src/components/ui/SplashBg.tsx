@@ -4,7 +4,7 @@ import type { CSSProperties } from "react";
 export const SplashBg: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{
     position: "relative", flex: 1, display: "flex", flexDirection: "column",
-    background: "transparent",
+    background: "transparent", minHeight: 0, overflow: "hidden",
   } as CSSProperties}>
     {children}
   </div>

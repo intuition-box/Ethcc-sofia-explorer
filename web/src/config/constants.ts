@@ -16,6 +16,7 @@ export const STORAGE_KEYS = {
   EMBEDDED_WALLET: "ethcc-embedded-wallet",
   BACKUP_DONE: "ethcc-backup-done",
   PUSH_SUBSCRIPTION: "ethcc-push-subscription",
+  NICKNAME: "ethcc-nickname",
 } as const;
 
 // ─── Session Type Colors ────────────────────────────────────────

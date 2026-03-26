@@ -17,13 +17,13 @@ export function SessionCard({ session, onClick, action, locked }: Props) {
 
   if (locked) {
     return (
-      <div className={styles.card} style={{ opacity: 0.5, cursor: "default" }}>
+      <div className={styles.card} onClick={onClick} style={{ opacity: 0.5, cursor: onClick ? "pointer" : "default" }}>
         <div className={styles.icon} style={{ background: `${ts.color}22` }}>
           🔒
         </div>
         <div className={styles.content}>
           <div className={styles.lockedTitle}>Session locked</div>
-          <div className={styles.lockedDesc}>Validate the tx to see this event</div>
+          <div className={styles.lockedDesc}>Add this interest to see details</div>
           <div className={styles.tags}>
             <span className={styles.tag} style={{ background: `${ts.color}22`, color: ts.color }}>
               {session.track}

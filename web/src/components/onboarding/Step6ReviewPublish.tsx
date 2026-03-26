@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { CSSProperties } from "react";
 import { C, glassSurface, btnPill, FONT, getTrackStyle } from "../../config/theme";
 import { sessions } from "../../data";
 import { QRCodeSVG } from "qrcode.react";
@@ -6,19 +7,172 @@ import { Ic } from "../ui/Icons";
 import { WalletPickerModal } from "./WalletPickerModal";
 import styles from "./Step6ReviewPublish.module.css";
 import shared from "../../styles/shared.module.css";
+import { linkBtn } from "../../styles/common";
 import type { useOnboardingWallet } from "../../hooks/useOnboardingWallet";
+
+// ─── Extracted inline styles ────────────────────────────────────
+
+/** Progress dot: active vs inactive */
+const progressDotStyle = (active: boolean): CSSProperties => ({
+  background: active ? C.flat : C.surfaceGray,
+});
+
+/** Settings menu item with colored text */
+const settingsMenuItemStyle = (color: string): CSSProperties => ({
+  color,
+  fontFamily: FONT,
+});
+
+/** Wrapper around nickname input section */
+const nicknameWrap: CSSProperties = { marginTop: 8 };
+
+/** Glass row containing the nickname input + icon */
+const nicknameInputCard: CSSProperties = {
+  ...glassSurface,
+  padding: 12,
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+};
+
+/** The text input itself (transparent, fills available space) */
+const nicknameInput: CSSProperties = {
+  flex: 1,
+  background: "none",
+  border: "none",
+  outline: "none",
+  color: C.textPrimary,
+  fontSize: 15,
+  fontWeight: 600,
+  fontFamily: FONT,
+};
+
+/** Hint text below nickname input */
+const nicknameHint: CSSProperties = {
+  fontSize: 11,
+  color: C.textTertiary,
+  marginTop: 6,
+  paddingLeft: 4,
+};
+
+/** Nickname shown above QR code */
+const qrNickname: CSSProperties = {
+  fontSize: 16,
+  fontWeight: 700,
+  color: C.white,
+  marginBottom: 8,
+};
+
+/** Balance text color: green when funded, yellow when waiting */
+const balanceColor = (hasFunds: boolean): CSSProperties => ({
+  color: hasFunds ? C.success : C.warning,
+});
+
+/** Disconnect link below QR card */
+const disconnectLinkStyle: CSSProperties = { fontFamily: FONT };
+
+/** Transaction details glass card */
+const txDetailsCard: CSSProperties = {
+  ...glassSurface,
+  marginTop: 16,
+  padding: 16,
+};
+
+/** Skip link with extra top margin (used inside error card) */
+const skipLinkWithMargin: CSSProperties = {
+  ...linkBtn,
+  marginTop: 8,
+};
+
+/** Interests / Sessions section wrapper */
+const sectionWrap: CSSProperties = { marginTop: 20 };
+
+/** Track pill: background + border from track color */
+const trackPillStyle = (color: string): CSSProperties => ({
+  background: color,
+  borderColor: color,
+});
+
+/** Session list item glass card */
+const sessionItemCard: CSSProperties = {
+  ...glassSurface,
+  padding: 12,
+};
+
+/** Backup key copy button (changes color on copy) */
+const backupCopyBtn = (copied: boolean): CSSProperties => ({
+  ...btnPill,
+  height: 40,
+  fontSize: 13,
+  background: copied ? C.success : C.surfaceGray,
+  color: copied ? "#0a0a0a" : C.textPrimary,
+});
+
+/** "I've saved it — Continue" button */
+const backupContinueBtn: CSSProperties = { ...btnPill, background: C.flat };
+
+/** Back button */
+const backBtn: CSSProperties = {
+  ...btnPill,
+  flex: 1,
+  background: C.surfaceGray,
+  color: C.textPrimary,
+};
+
+/** Primary action button (connect / publish) */
+const primaryBtn: CSSProperties = { ...btnPill, flex: 2, background: C.flat };
+
+/** Connecting / disabled button */
+const connectingBtn: CSSProperties = {
+  ...btnPill,
+  flex: 2,
+  background: C.flat,
+  opacity: 0.5,
+};
+
+/** Wrapper column when waiting for $TRUST */
+const waitingColumn: CSSProperties = {
+  flex: 2,
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+/** Disabled "Waiting for $TRUST" button */
+const waitingBtn: CSSProperties = {
+  ...btnPill,
+  background: C.flat,
+  opacity: 0.5,
+};
+
+/** Signing in-progress button */
+const signingBtn: CSSProperties = {
+  ...btnPill,
+  flex: 1,
+  background: C.flat,
+  opacity: 0.5,
+};
+
+/** Published / done button */
+const doneBtn: CSSProperties = {
+  ...btnPill,
+  flex: 1,
+  background: C.success,
+};
 
 interface Props {
   selectedTracks: Set<string>;
   selectedSessions: Set<string>;
   walletState: "idle" | "connecting" | "connected" | "signing" | "done";
   w: ReturnType<typeof useOnboardingWallet>;
+  nickname: string;
+  onNicknameChange: (v: string) => void;
   onBack: () => void;
   onPublish: () => void;
   onSkip: () => void;
 }
 
-export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletState, w, onBack, onPublish, onSkip }: Props) {
+export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletState, w, nickname, onNicknameChange, onBack, onPublish, onSkip }: Props) {
   const selectedSessionObjects = useMemo(
     () => sessions.filter((s) => selectedSessions.has(s.id)),
     [selectedSessions],
@@ -32,7 +186,7 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
       <div className={styles.header}>
         <div className={styles.progressBar}>
           {[0, 1, 2, 3, 4].map((i) => (
-            <div key={i} className={styles.progressDot} style={{ background: i <= 2 ? C.flat : C.surfaceGray }} />
+            <div key={i} className={styles.progressDot} style={progressDotStyle(i <= 2)} />
           ))}
         </div>
         <div className={styles.titleRow}>
@@ -44,11 +198,11 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
             {w.showSettings && (
               <div className={`${shared.glass} ${styles.settingsMenu}`}>
                 {(w.walletConnected || w.embeddedWallet) && (
-                  <button className={styles.settingsMenuItem} style={{ color: C.warning, fontFamily: FONT }} onClick={w.handleDisconnect}>
+                  <button className={styles.settingsMenuItem} style={settingsMenuItemStyle(C.warning)} onClick={w.handleDisconnect}>
                     Disconnect wallet
                   </button>
                 )}
-                <button className={styles.settingsMenuItem} style={{ color: C.error, fontFamily: FONT }} onClick={w.handleClearAllData}>
+                <button className={styles.settingsMenuItem} style={settingsMenuItemStyle(C.error)} onClick={w.handleClearAllData}>
                   Clear all data
                 </button>
               </div>
@@ -68,44 +222,33 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
 
       {/* Scroll area */}
       <div className={styles.scrollArea}>
-        {/* Interests */}
-        <div style={{ marginTop: 8 }}>
-          <p className={styles.sectionLabel}>Interests ({selectedTracks.size})</p>
-          <div className={styles.trackPills}>
-            {[...selectedTracks].map((name) => {
-              const ts = getTrackStyle(name);
-              return (
-                <span key={name} className={styles.trackPill} style={{ background: ts.color, borderColor: ts.color }}>
-                  {ts.icon} {name}
-                </span>
-              );
-            })}
+        {/* Nickname input */}
+        <div style={nicknameWrap}>
+          <p className={styles.sectionLabel}>Your Nickname</p>
+          <div className={shared.glass} style={nicknameInputCard}>
+            <Ic.User s={18} c={C.textTertiary} />
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => onNicknameChange(e.target.value)}
+              placeholder="Enter a nickname..."
+              maxLength={32}
+              style={nicknameInput}
+            />
           </div>
+          {nickname.trim() && (
+            <p style={nicknameHint}>
+              This name will be linked to your on-chain profile.
+            </p>
+          )}
         </div>
-
-        {/* Sessions */}
-        {selectedSessionObjects.length > 0 && (
-          <div style={{ marginTop: 20 }}>
-            <p className={styles.sectionLabel}>Sessions ({selectedSessionObjects.length})</p>
-            <div className={styles.sessionList}>
-              {selectedSessionObjects.map((s) => {
-                const ts = getTrackStyle(s.track);
-                return (
-                  <div key={s.id} className={shared.glass} style={{ ...glassSurface, padding: 12 }}>
-                    <div className={styles.sessionRow}>
-                      <span className={styles.sessionIcon}>{ts.icon}</span>
-                      <span className={styles.sessionTitle}>{s.title}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* QR Code */}
         {isWalletActive ? (
           <div className={`${shared.glass} ${styles.qrCard}`}>
+            {nickname.trim() && (
+              <div style={qrNickname}>{nickname.trim()}</div>
+            )}
             <QRCodeSVG value={w.effectiveAddress ?? ""} size={160} bgColor="transparent" fgColor="#ffffff" level="M" />
             <div
               className={styles.addressRow}
@@ -118,7 +261,7 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
             </div>
             {w.effectiveBalance !== null && (
               <div className={styles.balanceRow}>
-                <p className={styles.balance} style={{ color: parseFloat(w.effectiveBalance) > 0 ? C.success : C.warning }}>
+                <p className={styles.balance} style={balanceColor(parseFloat(w.effectiveBalance) > 0)}>
                   {parseFloat(w.effectiveBalance) > 0 ? `${parseFloat(w.effectiveBalance).toFixed(4)} TRUST` : "Waiting for $TRUST..."}
                 </p>
                 {w.embeddedWallet && (
@@ -129,7 +272,7 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
               </div>
             )}
             {walletState === "connected" && w.walletConnected && (
-              <button className={styles.disconnectLink} style={{ fontFamily: FONT }} onClick={w.disconnectWallet}>
+              <button className={styles.disconnectLink} style={disconnectLinkStyle} onClick={w.disconnectWallet}>
                 Disconnect wallet
               </button>
             )}
@@ -142,7 +285,7 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
         )}
 
         {/* Transaction details */}
-        <div className={shared.glass} style={{ ...glassSurface, marginTop: 16, padding: 16 }}>
+        <div className={shared.glass} style={txDetailsCard}>
           <p className={styles.txDetailsTitle}>Transaction Details</p>
           <div className={styles.txRow}><span>Network</span><span>Intuition (Chain 1155)</span></div>
           <div className={styles.txRow}><span>Triples to create</span><span>{tripleCount}</span></div>
@@ -155,10 +298,45 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
             <p className={styles.errorText}>{w.txError}</p>
             <button
               onClick={onSkip}
-              style={{ background: "none", border: "none", color: C.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: FONT, padding: "8px 0", marginTop: 8 }}
+              style={skipLinkWithMargin}
             >
               Skip and enter the app &rarr;
             </button>
+          </div>
+        )}
+
+        {/* Interests */}
+        <div style={sectionWrap}>
+          <p className={styles.sectionLabel}>Interests ({selectedTracks.size})</p>
+          <div className={styles.trackPills}>
+            {[...selectedTracks].map((name) => {
+              const ts = getTrackStyle(name);
+              return (
+                <span key={name} className={styles.trackPill} style={trackPillStyle(ts.color)}>
+                  {ts.icon} {name}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Sessions */}
+        {selectedSessionObjects.length > 0 && (
+          <div style={sectionWrap}>
+            <p className={styles.sectionLabel}>Sessions ({selectedSessionObjects.length})</p>
+            <div className={styles.sessionList}>
+              {selectedSessionObjects.map((s) => {
+                const ts = getTrackStyle(s.track);
+                return (
+                  <div key={s.id} className={shared.glass} style={sessionItemCard}>
+                    <div className={styles.sessionRow}>
+                      <span className={styles.sessionIcon}>{ts.icon}</span>
+                      <span className={styles.sessionTitle}>{s.title}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -171,43 +349,43 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
               <p className={styles.backupWarning}>Save your private key! You won't see it again.</p>
               <p className={styles.backupKey}>{w.embeddedPrivateKey}</p>
               <button
-                style={{ ...btnPill, height: 40, fontSize: 13, background: w.embeddedKeyCopied ? C.success : C.surfaceGray, color: w.embeddedKeyCopied ? "#0a0a0a" : C.textPrimary }}
+                style={backupCopyBtn(w.embeddedKeyCopied)}
                 onClick={() => { navigator.clipboard.writeText(w.embeddedPrivateKey); w.setEmbeddedKeyCopied(true); }}
               >
                 {w.embeddedKeyCopied ? "Copied!" : "Copy Private Key"}
               </button>
             </div>
-            <button style={{ ...btnPill, background: C.flat }} onClick={w.handleBackupDone}>I've saved it — Continue</button>
+            <button style={backupContinueBtn} onClick={w.handleBackupDone}>I've saved it — Continue</button>
           </div>
         ) : (
           <div className={styles.buttonRow}>
             {walletState !== "signing" && walletState !== "done" && (
-              <button style={{ ...btnPill, flex: 1, background: C.surfaceGray, color: C.textPrimary }} onClick={onBack}>Back</button>
+              <button style={backBtn} onClick={onBack}>Back</button>
             )}
             {walletState === "idle" && w.embeddedMode === "none" && (
-              <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={() => w.setShowWalletPicker(true)}>Connect Wallet</button>
+              <button style={primaryBtn} onClick={() => w.setShowWalletPicker(true)}>Connect Wallet</button>
             )}
             {walletState === "connecting" && (
-              <button style={{ ...btnPill, flex: 2, background: C.flat, opacity: 0.5 }} disabled>Connecting...</button>
+              <button style={connectingBtn} disabled>Connecting...</button>
             )}
             {walletState === "connected" && (
               parseFloat(w.effectiveBalance ?? "0") > 0
-                ? <button style={{ ...btnPill, flex: 2, background: C.flat }} onClick={onPublish}>Publish On-Chain</button>
-                : <div style={{ flex: 2, display: "flex", flexDirection: "column", gap: 6 }}>
-                    <button style={{ ...btnPill, background: C.flat, opacity: 0.5 }} disabled>Waiting for $TRUST...</button>
+                ? <button style={primaryBtn} onClick={onPublish}>Publish On-Chain</button>
+                : <div style={waitingColumn}>
+                    <button style={waitingBtn} disabled>Waiting for $TRUST...</button>
                     <button
                       onClick={onSkip}
-                      style={{ background: "none", border: "none", color: C.textSecondary, fontSize: 13, cursor: "pointer", fontFamily: FONT, padding: "8px 0" }}
+                      style={linkBtn}
                     >
                       Skip for now &rarr;
                     </button>
                   </div>
             )}
             {walletState === "signing" && (
-              <button style={{ ...btnPill, flex: 1, background: C.flat, opacity: 0.5 }} disabled>Signing... {w.txStatus}</button>
+              <button style={signingBtn} disabled>Signing... {w.txStatus}</button>
             )}
             {walletState === "done" && (
-              <button style={{ ...btnPill, flex: 1, background: C.success }} disabled>Published!</button>
+              <button style={doneBtn} disabled>Published!</button>
             )}
           </div>
         )}

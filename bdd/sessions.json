@@ -12,7 +12,7 @@
       "stageId": "jw-marriott-cannes",
       "track": "Stablecoins & Global Payments",
       "type": "Side Event",
-      "description": "Organized by Stable Summit",
+      "description": "Brings together the full spectrum of the global stablecoin ecosystem, from central banks and regulated issuers to permissionless protocols and DeFi-native infrastructure. Organized by Stable Summit.",
       "speakers": [],
       "tags": [],
       "topic": "Stablecoins & Global Payments"
@@ -27,7 +27,7 @@
       "stageId": "jw-marriott-cannes",
       "track": "Security",
       "type": "Side Event",
-      "description": "Organized by Rekt",
+      "description": "Security-focused summit by Rekt covering smart contract exploits, protocol vulnerabilities, and Web3 security best practices. Organized by Rekt.",
       "speakers": [],
       "tags": [],
       "topic": "Security"
@@ -42,7 +42,7 @@
       "stageId": "cannes",
       "track": "Applied cryptography",
       "type": "Side Event",
-      "description": "",
+      "description": "The second installment of Ethproofs day — zkEVM and formal verification of Ethereum execution. Organized by Ethereum Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Applied cryptography"
@@ -57,7 +57,7 @@
       "stageId": "cannes",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by Rayls",
+      "description": "Build on one of the fastest and most technically advanced EVM-compatible blockchains. Organized by Rayls.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -72,7 +72,7 @@
       "stageId": "cannes",
       "track": "Cypherpunk & Privacy",
       "type": "Side Event",
-      "description": "",
+      "description": "Post-quantum cryptography and consensus mechanisms for future-proofing Ethereum. Organized by Ethereum Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Cypherpunk & Privacy"
@@ -87,7 +87,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "",
+      "description": "Global community brunch for women in Web3. Networking, talks, and empowerment. Organized by BabesNet.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -102,7 +102,7 @@
       "stageId": "chateau-saint-george-cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Rayls, LimeChain",
+      "description": "Institutional adoption of on-chain infrastructure — bridging TradFi and DeFi. Organized by Rayls, LimeChain.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -117,7 +117,7 @@
       "stageId": "mougins",
       "track": "Sport & Wellness",
       "type": "Side Event",
-      "description": "Organized by Keyrock, Maven 11",
+      "description": "Casual padel sports session to kick off EthCC week. Organized by Keyrock, Maven 11.",
       "speakers": [],
       "tags": [],
       "topic": "Sport & Wellness"
@@ -132,7 +132,7 @@
       "stageId": "tennis-park-montfleury-cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Cork Protocol",
+      "description": "Tennis tournament meets DeFi networking at Tennis Park Montfleury. Organized by Cork Protocol.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -147,7 +147,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Hybrid Capital",
+      "description": "Private meetup for crypto-native investors and fund managers. Organized by Hybrid Capital.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -162,7 +162,7 @@
       "stageId": "amamo-coffee-cannes",
       "track": "Sport & Wellness",
       "type": "Side Event",
-      "description": "Organized by OpenCover",
+      "description": "5K morning run along the Cannes coastline. Organized by OpenCover.",
       "speakers": [],
       "tags": [],
       "topic": "Sport & Wellness"
@@ -177,7 +177,7 @@
       "stageId": "good-mate-coffee",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Espresso Systems",
+      "description": "Morning coffee social gathering at Good Mate Coffee. Organized by Espresso Systems.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -192,7 +192,7 @@
       "stageId": "cannes",
       "track": "Sport & Wellness",
       "type": "Side Event",
-      "description": "Organized by Everstake",
+      "description": "5K running event for the Ethereum community. Organized by Everstake.",
       "speakers": [],
       "tags": [],
       "topic": "Sport & Wellness"
@@ -207,7 +207,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Canton Foundation, Zenith",
+      "description": "Breakfast networking session for builders and developers. Organized by Canton Foundation, Zenith.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -243,7 +243,7 @@
       "stageId": "love-cafe",
       "track": "Applied cryptography",
       "type": "Side Event",
-      "description": "Organized by Tectonic, Sushi, Hack VC, Halborn",
+      "description": "Open discussion on cryptography, zero-knowledge proofs, and decentralized compute. Organized by Tectonic, Sushi, Hack VC, Halborn.",
       "speakers": [],
       "tags": [],
       "topic": "Applied cryptography"
@@ -258,7 +258,7 @@
       "stageId": "palais-des-festivals",
       "track": "Security",
       "type": "Side Event",
-      "description": "Organized by Veridise",
+      "description": "Live security challenge — prove your code is secure. EthCC ticket required. Organized by Veridise.",
       "speakers": [],
       "tags": [],
       "topic": "Security"
@@ -516,7 +516,7 @@
       "stageId": "palais-des-festivals",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Aave",
+      "description": "Full day of DeFi talks, panels, and workshops. EthCC ticket holders only. Organized by Aave.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -531,7 +531,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by fractl",
+      "description": "Invite-only brunch connecting founders with top-tier crypto investors. Organized by fractl.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -546,7 +546,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Masterkey VC",
+      "description": "Relaxed breakfast networking for founders and investors. Organized by Masterkey VC.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -877,7 +877,7 @@
       "stageId": "hotel-martinez",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by Tezos",
+      "description": "Tezos developer conference — talks, workshops, and ecosystem updates. Organized by Tezos.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -1201,7 +1201,7 @@
       "stageId": "casino-barriere-le-croisette",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Orak",
+      "description": "Private institutional summit at Casino Barrière Le Croisette. Organized by Orak.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -1216,7 +1216,7 @@
       "stageId": "palais-des-festivals",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Ambire",
+      "description": "Guided walking tour of Cannes for the Ethereum community. Organized by Ambire.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -1489,7 +1489,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Midas",
+      "description": "Exploring the future of settlement and clearing in decentralized finance. Organized by Midas.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -1504,7 +1504,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by fractl",
+      "description": "Invite-only cocktail hour for venture capitalists and limited partners. Organized by fractl.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -1519,7 +1519,7 @@
       "stageId": "hotel-martinez",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Family Office Investors",
+      "description": "Summit connecting family offices with crypto investment opportunities. Organized by Family Office Investors.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -1838,7 +1838,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Yield Network, INK",
+      "description": "Exploring liquidity provision mechanisms in DeFi. Organized by Yield Network, Ink.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -2090,7 +2090,7 @@
       "stageId": "palais-des-festivals",
       "track": "Cypherpunk & Privacy",
       "type": "Side Event",
-      "description": "Organized by Dappnode, Shutter",
+      "description": "Threshold encryption running club — combining node infrastructure and fitness. Organized by Dappnode, Shutter.",
       "speakers": [],
       "tags": [],
       "topic": "Cypherpunk & Privacy"
@@ -2105,7 +2105,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Hacken",
+      "description": "Wine tasting meets Web3 growth strategies and security insights. Organized by Hacken.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -2120,7 +2120,7 @@
       "stageId": "cannes",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by MetaMask",
+      "description": "Evening networking for builders by MetaMask. Organized by MetaMask.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -2135,7 +2135,7 @@
       "stageId": "le-roof-at-five-seas-hotel",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by BackersStage Capital",
+      "description": "Rooftop happy hour connecting founders with VCs at Five Seas Hotel. Organized by BackersStage Capital.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -2150,7 +2150,7 @@
       "stageId": "hotel-martinez",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by Tezos",
+      "description": "Tezos developer conference — talks, workshops, and ecosystem updates. Organized by Tezos.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -2165,7 +2165,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by NOTALONE Ventures",
+      "description": "Exclusive dinner for VIP investors. Organized by NOTALONE Ventures.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -2180,7 +2180,7 @@
       "stageId": "okko-hotels-cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Avalanche",
+      "description": "Avalanche ecosystem networking event at Okko Hotels. Organized by Avalanche.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -2195,7 +2195,7 @@
       "stageId": "cannes",
       "track": "Cypherpunk & Privacy",
       "type": "Side Event",
-      "description": "Organized by Boundless",
+      "description": "VIP dinner focused on privacy-preserving technologies. Organized by Boundless.",
       "speakers": [],
       "tags": [],
       "topic": "Cypherpunk & Privacy"
@@ -2210,7 +2210,7 @@
       "stageId": "cannes",
       "track": "Layer 2s",
       "type": "Side Event",
-      "description": "Organized by Arbitrum DAO",
+      "description": "Morning run for the Arbitrum community. Organized by Arbitrum DAO.",
       "speakers": [],
       "tags": [],
       "topic": "Layer 2s"
@@ -2225,7 +2225,7 @@
       "stageId": "cannes",
       "track": "Research",
       "type": "Side Event",
-      "description": "Organized by The Big Whale",
+      "description": "Discussions on scaling on-chain finance for institutional adoption. Organized by The Big Whale.",
       "speakers": [],
       "tags": [],
       "topic": "Research"
@@ -2240,7 +2240,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by RootstockLabs, Tyr Capital",
+      "description": "Bitcoin-focused breakfast for institutional players. Organized by RootstockLabs, Tyr Capital.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -2255,7 +2255,7 @@
       "stageId": "palm-beach-cannes",
       "track": "RWA Tokenisation",
       "type": "Side Event",
-      "description": "Organized by RWA Summit",
+      "description": "Full-day summit on Real World Asset tokenization. Organized by RWA Summit.",
       "speakers": [],
       "tags": [],
       "topic": "RWA Tokenisation"
@@ -2270,7 +2270,7 @@
       "stageId": "cannes",
       "track": "Research",
       "type": "Side Event",
-      "description": "Organized by Blockspace Forum",
+      "description": "Deep dives into blockspace markets, MEV, and protocol economics. Organized by Blockspace Forum.",
       "speakers": [],
       "tags": [],
       "topic": "Research"
@@ -2512,7 +2512,7 @@
       "stageId": "la-plage-du-festival-cannes",
       "track": "Layer 2s",
       "type": "Side Event",
-      "description": "Organized by StarkWare, Starknet Foundation",
+      "description": "Community café at La Plage Du Festival — meet the Starknet team. Organized by StarkWare, Starknet Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Layer 2s"
@@ -2527,7 +2527,7 @@
       "stageId": "cannes",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by Kraken",
+      "description": "Stock trading hackathon by Kraken. Organized by Kraken.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -2542,7 +2542,7 @@
       "stageId": "cannes",
       "track": "Built on Ethereum",
       "type": "Side Event",
-      "description": "Organized by WalletConnect",
+      "description": "WalletConnect annual conference — wallets, dApps, and chain abstraction. Organized by WalletConnect.",
       "speakers": [],
       "tags": [],
       "topic": "Built on Ethereum"
@@ -2557,7 +2557,7 @@
       "stageId": "palais-des-festivals",
       "track": "Research",
       "type": "Side Event",
-      "description": "Organized by Bancor",
+      "description": "Research symposium on token engineering. EthCC ticket required. Organized by Bancor.",
       "speakers": [],
       "tags": [],
       "topic": "Research"
@@ -2749,7 +2749,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Near Foundation",
+      "description": "NEAR protocol ecosystem happy hour and demos. Organized by Near Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -3343,7 +3343,7 @@
       "stageId": "cannes",
       "track": "Cypherpunk & Privacy",
       "type": "Side Event",
-      "description": "Organized by Fhenix",
+      "description": "Full day on fully homomorphic encryption (FHE) and its applications. Organized by Fhenix.",
       "speakers": [],
       "tags": [],
       "topic": "Cypherpunk & Privacy"
@@ -3358,7 +3358,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Quantstamp, Zircuit",
+      "description": "Intimate networking event by Quantstamp and Zircuit. Organized by Quantstamp, Zircuit.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -3709,7 +3709,7 @@
       "stageId": "cannes",
       "track": "Security",
       "type": "Side Event",
-      "description": "Organized by W3ST",
+      "description": "Web3 Security Tools seminar — hands-on security tooling workshops. Organized by W3ST.",
       "speakers": [],
       "tags": [],
       "topic": "Security"
@@ -4449,7 +4449,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Kpk",
+      "description": "Panel and discussion on scaling DeFi infrastructure. Organized by Kpk.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -4464,7 +4464,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Wirex, Privy, Bridge",
+      "description": "Multi-partner social event by Wirex, Privy, and Bridge. Organized by Wirex, Privy, Bridge.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -4479,7 +4479,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Mezo",
+      "description": "Rooftop happy hour for developers by Mezo. Organized by Mezo.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -4641,7 +4641,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by SunDAO Ventures",
+      "description": "Investors and builders mixer by SunDAO Ventures. Organized by SunDAO Ventures.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -4656,7 +4656,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Rain, Turnkey",
+      "description": "Evening networking by Rain and Turnkey. Organized by Rain, Turnkey.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -4671,7 +4671,7 @@
       "stageId": "la-plage-du-festival-cannes",
       "track": "Layer 2s",
       "type": "Side Event",
-      "description": "Organized by StarkWare, Starknet Foundation",
+      "description": "Beach party at La Plage Du Festival for the Starknet community. Organized by StarkWare, Starknet Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Layer 2s"
@@ -4686,7 +4686,7 @@
       "stageId": "cannes",
       "track": "Sport & Wellness",
       "type": "Side Event",
-      "description": "Organized by Redstone",
+      "description": "Morning running event by RedStone. Organized by RedStone.",
       "speakers": [],
       "tags": [],
       "topic": "Sport & Wellness"
@@ -4701,7 +4701,7 @@
       "stageId": "cannes",
       "track": "Security",
       "type": "Side Event",
-      "description": "Organized by Opsek",
+      "description": "Breakfast seminar on physical and operational security for crypto founders. Organized by Opsek.",
       "speakers": [],
       "tags": [],
       "topic": "Security"
@@ -4716,7 +4716,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Hack Seasons",
+      "description": "Full-day conference covering DeFi, infrastructure, and emerging narratives. Organized by Hack Seasons.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -4848,7 +4848,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Morpho",
+      "description": "Summit on vault strategies and yield optimization by Morpho. Organized by Morpho.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -4863,7 +4863,7 @@
       "stageId": "palais-des-festivals",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Ambire",
+      "description": "Guided walking tour of Cannes for the Ethereum community. Organized by Ambire.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -5216,7 +5216,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Arrakis, Bitpanda, Uniswap",
+      "description": "Beach networking for investors and founders. Organized by Arrakis, Bitpanda, Uniswap.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -5231,7 +5231,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by LO:Tech",
+      "description": "Rooftop brunch for founders, funders, and friends. Organized by LO:Tech.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -5246,7 +5246,7 @@
       "stageId": "palais-des-festivals",
       "track": "Research",
       "type": "Side Event",
-      "description": "Organized by Token Engineering Academy, Bancor",
+      "description": "Hands-on token engineering workshop. Organized by Token Engineering Academy, Bancor, UZH.",
       "speakers": [],
       "tags": [],
       "topic": "Research"
@@ -5794,7 +5794,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by FP Block",
+      "description": "Private villa gathering on the Côte d'Azur. Organized by FP Block.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -6348,7 +6348,7 @@
       "stageId": "palais-des-festivals",
       "track": "Security",
       "type": "Side Event",
-      "description": "Organized by Wonderland",
+      "description": "The largest Capture The Flag competition in crypto history. Organized by Wonderland.",
       "speakers": [],
       "tags": [],
       "topic": "Security"
@@ -6772,7 +6772,7 @@
       "stageId": "cannes",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by Celo Foundation",
+      "description": "Celo ecosystem meetup and builder gathering. Organized by Celo Foundation.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"
@@ -6829,7 +6829,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Cap",
+      "description": "Networking event by Cap in Cannes. Organized by Cap.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -6844,7 +6844,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by 1inch",
+      "description": "Art-focused social evening by 1inch — not crypto, just art. Organized by 1inch.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -6859,7 +6859,7 @@
       "stageId": "cannes",
       "track": "Stablecoins & Global Payments",
       "type": "Side Event",
-      "description": "Organized by Eurooo.xyz",
+      "description": "Beer, Euros, and DeFi — casual networking evening. Organized by Eurooo.xyz.",
       "speakers": [],
       "tags": [],
       "topic": "Stablecoins & Global Payments"
@@ -6874,7 +6874,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Makina, Steakhouse, Liquity, Dialectic",
+      "description": "DeFi discussion on a rooftop venue. Organized by Makina, Steakhouse, Liquity, Dialectic.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -6889,7 +6889,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by BitGo",
+      "description": "Villa networking event by BitGo. Organized by BitGo.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -6904,7 +6904,7 @@
       "stageId": "cannes",
       "track": "EthStaker",
       "type": "Side Event",
-      "description": "Organized by Aztec",
+      "description": "Boat-based networking event by Aztec. Organized by Aztec.",
       "speakers": [],
       "tags": [],
       "topic": "EthStaker"
@@ -6919,7 +6919,7 @@
       "stageId": "cannes",
       "track": "DeFi",
       "type": "Side Event",
-      "description": "Organized by Yield Network, INK",
+      "description": "Exploring liquidity provision mechanisms in DeFi. Organized by Yield Network, Ink.",
       "speakers": [],
       "tags": [],
       "topic": "DeFi"
@@ -6934,7 +6934,7 @@
       "stageId": "cannes",
       "track": "Investor & Fundraising",
       "type": "Side Event",
-      "description": "Organized by Lido",
+      "description": "VIP dinner for institutional staking discussions by Lido. Organized by Lido.",
       "speakers": [],
       "tags": [],
       "topic": "Investor & Fundraising"
@@ -6949,7 +6949,7 @@
       "stageId": "cannes",
       "track": "Research",
       "type": "Side Event",
-      "description": "Organized by EthGlobal",
+      "description": "EthGlobal's flagship event — talks, demos, and hackathon kick-off. Organized by EthGlobal.",
       "speakers": [],
       "tags": [],
       "topic": "Research"
@@ -7100,7 +7100,7 @@
       "stageId": "palais-des-festivals",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Ambire",
+      "description": "Guided walking tour of Cannes for the Ethereum community. Organized by Ambire.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -7635,7 +7635,7 @@
       "stageId": "canopy-by-hilton-cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Cointelegraph",
+      "description": "Cointelegraph's Cannes edition conference at Canopy by Hilton. Organized by Cointelegraph.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -8044,7 +8044,7 @@
       "stageId": "promenade-de-la-pantiero-canne",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by Espresso Systems",
+      "description": "Pétanque tournament on the Promenade de la Pantiero. Organized by Espresso Systems.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -8382,7 +8382,7 @@
       "stageId": "cannes",
       "track": "Networking & Social",
       "type": "Side Event",
-      "description": "Organized by ChainSecurity, Frankencoin",
+      "description": "Pre-afterparty with cheese and wine by ChainSecurity and Frankencoin. Organized by ChainSecurity, Frankencoin.",
       "speakers": [],
       "tags": [],
       "topic": "Networking & Social"
@@ -8397,7 +8397,7 @@
       "stageId": "cannes",
       "track": "Builders & Hackathons",
       "type": "Side Event",
-      "description": "Organized by EthGlobal",
+      "description": "Multi-day hackathon in Cannes by EthGlobal. Organized by EthGlobal.",
       "speakers": [],
       "tags": [],
       "topic": "Builders & Hackathons"

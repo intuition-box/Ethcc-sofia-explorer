@@ -17,6 +17,14 @@ import {
 import { STORAGE_KEYS } from "../config/constants";
 import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
+import {
+  scrollContent,
+  fluidContent,
+  accentBar,
+  heroBackground,
+  horizontalScroll,
+  metaText,
+} from "../styles/common";
 
 // ─── Styles ─────────────────────────────────────────────────────
 const page: CSSProperties = {
@@ -142,6 +150,316 @@ const sessionRow: CSSProperties = {
   boxSizing: "border-box",
 };
 
+const heroBackgroundStyle: CSSProperties = heroBackground(C.flat);
+
+const scrollableContent: CSSProperties = {
+  ...scrollContent,
+  paddingBottom: 0,
+};
+
+const heroTransparent: CSSProperties = {
+  ...heroSection,
+  background: "transparent",
+};
+
+const headerRowWithPadding: CSSProperties = {
+  ...headerRow,
+  paddingTop: 16,
+};
+
+const eventName: CSSProperties = {
+  fontSize: 14,
+  color: "rgba(0,0,0,0.6)",
+};
+
+const trophyBtn: CSSProperties = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: 4,
+};
+
+const circleIconSend: CSSProperties = {
+  ...circleIcon,
+  background: "#D790C7",
+};
+
+const circleIconInvite: CSSProperties = {
+  ...circleIcon,
+  background: "#cea2fd",
+};
+
+const actionLabel: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 500,
+  color: C.textPrimary,
+};
+
+const backupCard: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 12px",
+  padding: 14,
+  border: `1px solid ${C.warning}44`,
+};
+
+const backupTitle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: C.warning,
+  marginBottom: 6,
+};
+
+const backupDesc: CSSProperties = {
+  fontSize: 12,
+  color: C.textSecondary,
+  marginBottom: 10,
+};
+
+const backupKeyDisplay: CSSProperties = {
+  fontSize: 11,
+  color: C.textSecondary,
+  fontFamily: "monospace",
+  wordBreak: "break-all",
+  background: C.surfaceGray,
+  padding: 10,
+  borderRadius: R.md,
+  marginBottom: 8,
+};
+
+const flexRow: CSSProperties = {
+  display: "flex",
+  gap: 8,
+};
+
+const btnCopy: CSSProperties = {
+  flex: 1,
+  padding: "8px 0",
+  borderRadius: R.btn,
+  border: "none",
+  background: C.surfaceGray,
+  color: C.textPrimary,
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
+
+const btnSaved: CSSProperties = {
+  flex: 1,
+  padding: "8px 0",
+  borderRadius: R.btn,
+  border: "none",
+  background: C.flat,
+  color: "#0a0a0a",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
+
+const btnReveal: CSSProperties = {
+  padding: "8px 16px",
+  borderRadius: R.btn,
+  border: "none",
+  background: C.warning,
+  color: "#0a0a0a",
+  fontSize: 12,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
+
+const unlockBanner: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 12px",
+  padding: 14,
+  display: "flex",
+  alignItems: "center",
+  gap: 12,
+  cursor: "pointer",
+  border: `1px solid ${C.primary}44`,
+};
+
+const unlockBannerContent: CSSProperties = {
+  flex: 1,
+};
+
+const unlockBannerTitle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: C.textPrimary,
+};
+
+const unlockBannerSubtitle: CSSProperties = {
+  fontSize: 11,
+  color: C.textSecondary,
+};
+
+const unlockFormCard: CSSProperties = {
+  ...glassSurface,
+  margin: "0 16px 12px",
+  padding: 14,
+};
+
+const unlockFormTitle: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 600,
+  marginBottom: 8,
+};
+
+const passwordInput: CSSProperties = {
+  width: "100%",
+  padding: "10px 14px",
+  borderRadius: R.md,
+  border: `1px solid ${C.border}`,
+  background: C.surfaceGray,
+  color: C.textPrimary,
+  fontSize: 14,
+  fontFamily: FONT,
+  outline: "none",
+  boxSizing: "border-box",
+  marginBottom: 8,
+};
+
+const errorText: CSSProperties = {
+  fontSize: 11,
+  color: C.error,
+  marginBottom: 6,
+};
+
+const btnCancel: CSSProperties = {
+  flex: 1,
+  padding: "8px 0",
+  borderRadius: R.btn,
+  border: "none",
+  background: C.surfaceGray,
+  color: C.textSecondary,
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
+
+const btnUnlock: CSSProperties = {
+  flex: 1,
+  padding: "8px 0",
+  borderRadius: R.btn,
+  border: "none",
+  background: C.flat,
+  color: "#0a0a0a",
+  fontSize: 13,
+  fontWeight: 600,
+  cursor: "pointer",
+  fontFamily: FONT,
+};
+
+const seeAllLink: CSSProperties = {
+  fontSize: 12,
+  color: C.flat,
+  cursor: "pointer",
+};
+
+const vibeScrollRow: CSSProperties = {
+  ...horizontalScroll,
+  padding: "0 20px 8px",
+};
+
+const vibeCard: CSSProperties = {
+  ...glassSurface,
+  padding: 14,
+  minWidth: 140,
+  maxWidth: 160,
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  gap: 8,
+  cursor: "pointer",
+  flexShrink: 0,
+};
+
+const vibeAvatar = (bg: string): CSSProperties => ({
+  width: 48,
+  height: 48,
+  borderRadius: 24,
+  background: bg,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 16,
+  fontWeight: 700,
+  color: "#0a0a0a",
+});
+
+const vibeLabel: CSSProperties = {
+  fontSize: 12,
+  fontWeight: 600,
+  color: C.white,
+  fontFamily: "monospace",
+  textAlign: "center",
+};
+
+const vibeTopics: CSSProperties = {
+  fontSize: 11,
+  color: C.textSecondary,
+  textAlign: "center",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  maxWidth: "100%",
+};
+
+const vibeScore: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 700,
+  color: C.success,
+};
+
+const loadingWrap: CSSProperties = {
+  padding: "16px 20px",
+  textAlign: "center",
+};
+
+const loadingText: CSSProperties = {
+  fontSize: 13,
+  color: C.textSecondary,
+};
+
+const sessionsListWrap: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 10,
+  padding: "0 20px 24px",
+};
+
+const trackIconSpan: CSSProperties = {
+  fontSize: 20,
+  flexShrink: 0,
+};
+
+const sessionTitleText: CSSProperties = {
+  fontSize: 14,
+  fontWeight: 600,
+  color: C.white,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const sessionMeta: CSSProperties = {
+  ...metaText,
+  fontSize: 12,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const emptySessionsText: CSSProperties = {
+  fontSize: 14,
+  color: C.textSecondary,
+  textAlign: "center",
+  padding: 20,
+};
+
 // ─── Component ──────────────────────────────────────────────────
 export default function HomePage() {
   const navigate = useNavigate();
@@ -172,11 +490,14 @@ export default function HomePage() {
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
-  // Today's sessions: filter by first available date
+  // Today's sessions: filter by actual today, fallback to nearest future date
   const todaySessions = useMemo(() => {
-    const firstDate = dates[0];
-    if (!firstDate) return [];
-    return sessions.filter((s) => s.date === firstDate).slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
+    const targetDate = dates.includes(today)
+      ? today
+      : dates.find((d) => d >= today) ?? dates[dates.length - 1];
+    if (!targetDate) return [];
+    return sessions.filter((s) => s.date === targetDate).slice(0, 10);
   }, []);
 
   // Real vibe matches — use ONLY on-chain published data, not cart
@@ -224,22 +545,17 @@ export default function HomePage() {
   return (
     <div style={page}>
       {/* Fixed color background */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200, background: C.flat, borderRadius: `0 0 ${R.xl}px ${R.xl}px`, zIndex: 0 }} />
+      <div style={heroBackgroundStyle} />
 
       {/* ── Scrollable content ─────────────────────────────── */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", position: "relative", zIndex: 1 }}>
+      <div ref={scrollRef} style={scrollableContent}>
       {/* ── Hero / Balance ─────────────────────────────────── */}
-      <div style={{ ...heroSection, background: "transparent" }}>
-        <div style={{ ...headerRow, paddingTop: 16 }}>
-          <span style={{ fontSize: 14, color: "rgba(0,0,0,0.6)" }}>EthCC[9] Cannes</span>
+      <div style={heroTransparent}>
+        <div style={headerRowWithPadding}>
+          <span style={eventName}>EthCC[9] Cannes</span>
           <button
             onClick={() => navigate("/leaderboard")}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: 4,
-            }}
+            style={trophyBtn}
           >
             <Ic.Trophy s={22} c="#0a0a0a" />
           </button>
@@ -260,43 +576,43 @@ export default function HomePage() {
       {/* ── Glass action bar ───────────────────────────────── */}
       <div style={actionBar}>
         <button style={actionCircle} onClick={() => navigate("/send")}>
-          <div style={{ ...circleIcon, background: "#D790C7" }}>
+          <div style={circleIconSend}>
             <Ic.Send s={22} c="#0a0a0a" />
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.textPrimary }}>Send</span>
+          <span style={actionLabel}>Send</span>
         </button>
         <button style={actionCircle} onClick={() => navigate("/invite")}>
-          <div style={{ ...circleIcon, background: "#cea2fd" }}>
+          <div style={circleIconInvite}>
             <Ic.Share s={22} c="#0a0a0a" />
           </div>
-          <span style={{ fontSize: 13, fontWeight: 500, color: C.textPrimary }}>Invite</span>
+          <span style={actionLabel}>Invite</span>
         </button>
       </div>
 
       {/* ── Backup reminder (embedded wallet, never backed up) ── */}
       {showBackupReminder && isEmbedded && (
-        <div style={{ ...glassSurface, margin: "0 16px 12px", padding: 14, border: `1px solid ${C.warning}44` }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: C.warning, marginBottom: 6 }}>
+        <div style={backupCard}>
+          <div style={backupTitle}>
             Backup your private key
           </div>
-          <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 10 }}>
+          <div style={backupDesc}>
             You created an embedded wallet but never saved your private key. If you lose it, your funds are gone.
           </div>
           {backupKey ? (
             <>
-              <div style={{ fontSize: 11, color: C.textSecondary, fontFamily: "monospace", wordBreak: "break-all", background: C.surfaceGray, padding: 10, borderRadius: R.md, marginBottom: 8 }}>
+              <div style={backupKeyDisplay}>
                 {backupKey}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={flexRow}>
                 <button
                   onClick={() => { navigator.clipboard.writeText(backupKey); }}
-                  style={{ flex: 1, padding: "8px 0", borderRadius: R.btn, border: "none", background: C.surfaceGray, color: C.textPrimary, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+                  style={btnCopy}
                 >
                   Copy
                 </button>
                 <button
                   onClick={handleBackupAck}
-                  style={{ flex: 1, padding: "8px 0", borderRadius: R.btn, border: "none", background: C.flat, color: "#0a0a0a", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+                  style={btnSaved}
                 >
                   I've saved it
                 </button>
@@ -316,7 +632,7 @@ export default function HomePage() {
                   alert("Wrong password");
                 }
               }}
-              style={{ padding: "8px 16px", borderRadius: R.btn, border: "none", background: C.warning, color: "#0a0a0a", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+              style={btnReveal}
             >
               Reveal Private Key
             </button>
@@ -327,21 +643,21 @@ export default function HomePage() {
       {/* ── Unlock embedded wallet banner ──────────────────── */}
       {isEmbedded && !walletUnlocked && !showUnlock && (
         <div
-          style={{ ...glassSurface, margin: "0 16px 12px", padding: 14, display: "flex", alignItems: "center", gap: 12, cursor: "pointer", border: `1px solid ${C.primary}44` }}
+          style={unlockBanner}
           onClick={() => setShowUnlock(true)}
         >
           <Ic.Wallet s={20} c={C.primary} />
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary }}>Unlock Embedded Wallet</div>
-            <div style={{ fontSize: 11, color: C.textSecondary }}>Enter password to sign transactions</div>
+          <div style={unlockBannerContent}>
+            <div style={unlockBannerTitle}>Unlock Embedded Wallet</div>
+            <div style={unlockBannerSubtitle}>Enter password to sign transactions</div>
           </div>
           <Ic.Right s={16} c={C.textTertiary} />
         </div>
       )}
 
       {showUnlock && (
-        <div style={{ ...glassSurface, margin: "0 16px 12px", padding: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Enter wallet password</div>
+        <div style={unlockFormCard}>
+          <div style={unlockFormTitle}>Enter wallet password</div>
           <input
             type="password"
             value={unlockPassword}
@@ -349,24 +665,19 @@ export default function HomePage() {
             onKeyDown={(e) => { if (e.key === "Enter") handleUnlock(); }}
             placeholder="Password"
             autoFocus
-            style={{
-              width: "100%", padding: "10px 14px", borderRadius: R.md,
-              border: `1px solid ${C.border}`, background: C.surfaceGray,
-              color: C.textPrimary, fontSize: 14, fontFamily: FONT,
-              outline: "none", boxSizing: "border-box", marginBottom: 8,
-            }}
+            style={passwordInput}
           />
-          {unlockError && <div style={{ fontSize: 11, color: C.error, marginBottom: 6 }}>{unlockError}</div>}
-          <div style={{ display: "flex", gap: 8 }}>
+          {unlockError && <div style={errorText}>{unlockError}</div>}
+          <div style={flexRow}>
             <button
               onClick={() => { setShowUnlock(false); setUnlockPassword(""); setUnlockError(""); }}
-              style={{ flex: 1, padding: "8px 0", borderRadius: R.btn, border: "none", background: C.surfaceGray, color: C.textSecondary, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+              style={btnCancel}
             >
               Cancel
             </button>
             <button
               onClick={handleUnlock}
-              style={{ flex: 1, padding: "8px 0", borderRadius: R.btn, border: "none", background: C.flat, color: "#0a0a0a", fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: FONT }}
+              style={btnUnlock}
             >
               Unlock
             </button>
@@ -380,41 +691,37 @@ export default function HomePage() {
           <div style={sectionHeader}>
             <span style={sectionTitle}>Nearby Vibes</span>
             <span
-              style={{ fontSize: 12, color: C.flat, cursor: "pointer" }}
+              style={seeAllLink}
               onClick={() => navigate("/vibes")}
             >
               See all
             </span>
           </div>
-          <div style={{ display: "flex", gap: 12, overflowX: "auto", padding: "0 20px 8px", scrollbarWidth: "none" }}>
+          <div style={vibeScrollRow}>
             {vibeMatches.slice(0, 8).map((m, idx) => (
               <div
                 key={m.subjectTermId}
                 onClick={() => navigate(`/vibe/${idx}`)}
-                style={{
-                  ...glassSurface, padding: 14, minWidth: 140, maxWidth: 160,
-                  display: "flex", flexDirection: "column", alignItems: "center",
-                  gap: 8, cursor: "pointer", flexShrink: 0,
-                }}
+                style={vibeCard}
               >
-                <div style={{ width: 48, height: 48, borderRadius: 24, background: avatarColor(m.label), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, color: "#0a0a0a" }}>
+                <div style={vibeAvatar(avatarColor(m.label))}>
                   {m.label.slice(2, 4).toUpperCase()}
                 </div>
-                <div style={{ fontSize: 12, fontWeight: 600, color: C.white, fontFamily: "monospace", textAlign: "center" }}>
+                <div style={vibeLabel}>
                   {m.label.slice(0, 6)}...{m.label.slice(-4)}
                 </div>
-                <div style={{ fontSize: 11, color: C.textSecondary, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>
+                <div style={vibeTopics}>
                   {m.sharedTopics.slice(0, 2).join(", ")}
                 </div>
-                <span style={{ fontSize: 14, fontWeight: 700, color: C.success }}>{m.matchScore}%</span>
+                <span style={vibeScore}>{m.matchScore}%</span>
               </div>
             ))}
           </div>
         </>
       )}
       {vibesLoading && (
-        <div style={{ padding: "16px 20px", textAlign: "center" }}>
-          <span style={{ fontSize: 13, color: C.textSecondary }}>Finding vibe matches...</span>
+        <div style={loadingWrap}>
+          <span style={loadingText}>Finding vibe matches...</span>
         </div>
       )}
 
@@ -422,20 +729,13 @@ export default function HomePage() {
       <div style={sectionHeader}>
         <span style={sectionTitle}>Today's Sessions</span>
         <span
-          style={{ fontSize: 12, color: C.flat, cursor: "pointer" }}
+          style={seeAllLink}
           onClick={() => navigate("/agenda")}
         >
           View all
         </span>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 10,
-          padding: "0 20px 24px",
-        }}
-      >
+      <div style={sessionsListWrap}>
         {todaySessions.map((s) => {
           const ts = getTrackStyle(s.track);
           const isPublished = publishedSessions.includes(s.id);
@@ -447,30 +747,13 @@ export default function HomePage() {
               onClick={() => navigate(`/session/${s.id}`)}
             >
               {/* Track accent */}
-              <div
-                style={{
-                  width: 4,
-                  alignSelf: "stretch",
-                  borderRadius: 2,
-                  background: ts.color,
-                  flexShrink: 0,
-                }}
-              />
-              <span style={{ fontSize: 20, flexShrink: 0 }}>{ts.icon}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div
-                  style={{
-                    fontSize: 14,
-                    fontWeight: 600,
-                    color: C.white,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
+              <div style={accentBar(ts.color)} />
+              <span style={trackIconSpan}>{ts.icon}</span>
+              <div style={fluidContent}>
+                <div style={sessionTitleText}>
                   {s.title}
                 </div>
-                <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <div style={sessionMeta}>
                   {s.speakers.length > 0 ? s.speakers[0].name : "TBA"} &middot;{" "}
                   {s.startTime} &ndash; {s.endTime}
                 </div>
@@ -483,7 +766,7 @@ export default function HomePage() {
           );
         })}
         {todaySessions.length === 0 && (
-          <p style={{ fontSize: 14, color: C.textSecondary, textAlign: "center", padding: 20 }}>
+          <p style={emptySessionsText}>
             No sessions scheduled for today.
           </p>
         )}

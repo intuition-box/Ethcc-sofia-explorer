@@ -4,7 +4,14 @@ import speakersJson from "../../../bdd/speakers.json";
 import ratingsGraphJson from "../../../bdd/session_ratings_graph.json";
 import type { Session, Track, Speaker } from "../types";
 
-export const sessions: Session[] = (sessionsJson as unknown as { sessions: Session[] }).sessions;
+// Deduplicate by ID — scraped data has a few entries with the same ID (trailing spaces / title variants)
+const rawSessions: Session[] = (sessionsJson as unknown as { sessions: Session[] }).sessions;
+const seenIds = new Set<string>();
+export const sessions: Session[] = rawSessions.filter((s) => {
+  if (seenIds.has(s.id)) return false;
+  seenIds.add(s.id);
+  return true;
+});
 export const tracks: Track[] = (tracksJson as { tracks: Track[] }).tracks;
 export const speakers: Speaker[] = (speakersJson as unknown as { speakers: Speaker[] }).speakers;
 export const event = { name: "EthCC[9]", location: "Cannes, France", dates: { start: "2026-03-30", end: "2026-04-02" } };

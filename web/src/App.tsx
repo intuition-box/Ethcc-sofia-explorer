@@ -81,11 +81,11 @@ const toastStyle: CSSProperties = {
 function AppContent() {
   const location = useLocation();
   const { cart } = useCart();
-  const showNav = TAB_PATHS.includes(location.pathname);
+  const showNav = TAB_PATHS.includes(location.pathname) || location.pathname.startsWith("/vibe/");
 
   // Check if onboarding is completed
   const topics = StorageService.loadTopics();
-  const hasOnboarded = topics.size > 0 || localStorage.getItem("ethcc-onboarded") === "1";
+  const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET || topics.size > 0 || localStorage.getItem("ethcc-onboarded") === "1";
 
   if (!hasOnboarded && location.pathname !== "/") {
     // We let the router handle this via the index route

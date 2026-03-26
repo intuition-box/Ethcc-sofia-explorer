@@ -19,7 +19,7 @@ interface Props {
 
 export function Step7Success({
   selectedTracks, txHash, vibeMatchesData, vibeLoading,
-  canInstall, installed, promptInstall, onComplete,
+  onComplete,
 }: Props) {
   const cbendItems = [...selectedTracks].map((name) => ({ c: getTrackStyle(name).color, v: 1 }));
 
@@ -80,13 +80,6 @@ export function Step7Success({
           </div>
         )}
       </div>
-
-      {canInstall && (
-        <button className={styles.installBtn} style={{ ...btnPill, background: C.flat }} onClick={promptInstall}>
-          Install App on Home Screen
-        </button>
-      )}
-      {installed && <div className={styles.installedText}>App installed!</div>}
 
       <button className={styles.enterBtn} style={{ ...btnPill, background: C.flat }} onClick={onComplete}>
         Enter the App

@@ -47,10 +47,11 @@ export function useVibeMatches(
   }, []);
 
   useEffect(() => {
-    const trackIds = [...topics].map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
+    const allTrackIds = Object.values(TRACK_ATOM_IDS).filter(Boolean);
     const voteAtomIds = (votedTopicIds ?? []).map((t) => TOPIC_ATOM_IDS[t]).filter(Boolean);
     const sessAtomIds = sessionIds.map((id) => SESSION_ATOM_IDS[id]).filter(Boolean);
-    const allAtomIds = [...trackIds, ...voteAtomIds];
+    // Query ALL track atoms so we know each user's full track set (for Jaccard similarity)
+    const allAtomIds = [...allTrackIds, ...voteAtomIds];
 
     if (allAtomIds.length === 0 && sessAtomIds.length === 0) return;
     if (!walletAddress) return;
@@ -126,31 +127,40 @@ export function useVibeMatches(
           }
         }
 
-        // Score
-        const totalTracks = topicList.length;
-        const totalVotes = voteTopicList.length;
-        const totalSessions = sessionIds.length;
+        // Score — Jaccard similarity (intersection / union) per dimension
+        const myTracks = new Set(topicList);
+        const myVotes = new Set(voteTopicList);
+        const mySessions = new Set(sessionIds);
 
         const result: VibeMatch[] = [];
         for (const [id, info] of userMap) {
           if (id === addr) continue;
 
-          const trackScore = totalTracks > 0 ? Math.round((info.tracks.size / totalTracks) * 100) : 0;
-          const voteScore = totalVotes > 0 ? Math.round((info.votes.size / totalVotes) * 100) : 0;
-          const sessionScore = totalSessions > 0 ? Math.round((info.sessions.size / totalSessions) * 100) : 0;
+          // Shared = intersection, union = both sets combined
+          const sharedTracks = [...info.tracks].filter((t) => myTracks.has(t));
+          const sharedVotes = [...info.votes].filter((v) => myVotes.has(v));
+          const sharedSess = [...info.sessions].filter((s) => mySessions.has(s));
+
+          const trackUnion = new Set([...myTracks, ...info.tracks]).size;
+          const voteUnion = new Set([...myVotes, ...info.votes]).size;
+          const sessionUnion = new Set([...mySessions, ...info.sessions]).size;
+
+          const trackScore = trackUnion > 0 ? Math.round((sharedTracks.length / trackUnion) * 100) : 0;
+          const voteScore = voteUnion > 0 ? Math.round((sharedVotes.length / voteUnion) * 100) : 0;
+          const sessionScore = sessionUnion > 0 ? Math.round((sharedSess.length / sessionUnion) * 100) : 0;
 
           let totalWeight = 0, weightedSum = 0;
-          if (totalTracks > 0) { weightedSum += trackScore * 0.4; totalWeight += 0.4; }
-          if (totalVotes > 0) { weightedSum += voteScore * 0.35; totalWeight += 0.35; }
-          if (totalSessions > 0) { weightedSum += sessionScore * 0.25; totalWeight += 0.25; }
+          if (myTracks.size > 0) { weightedSum += trackScore * 0.4; totalWeight += 0.4; }
+          if (myVotes.size > 0) { weightedSum += voteScore * 0.35; totalWeight += 0.35; }
+          if (mySessions.size > 0) { weightedSum += sessionScore * 0.25; totalWeight += 0.25; }
           const matchScore = totalWeight > 0 ? Math.round(weightedSum / totalWeight) : 0;
 
           if (matchScore === 0) continue;
 
           result.push({
             subjectTermId: id, label: info.label,
-            sharedTopics: [...info.tracks, ...info.votes],
-            sharedSessions: [...info.sessions],
+            sharedTopics: [...sharedTracks, ...sharedVotes],
+            sharedSessions: sharedSess,
             matchScore, trackScore, voteScore, sessionScore,
           });
         }

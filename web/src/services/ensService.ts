@@ -3,8 +3,12 @@
  * from Ethereum mainnet.
  */
 
-// Public Ethereum mainnet RPC for ENS lookups
-const ETH_MAINNET_RPC = "https://eth.llamarpc.com";
+// Ethereum mainnet RPC for ENS lookups
+// Dev: proxied via Vite to avoid adblocker blocking RPC domains
+// Prod: use publicnode (less likely to be blocked than llamarpc)
+const ETH_MAINNET_RPC = import.meta.env.DEV
+  ? `${window.location.origin}/api/eth-rpc`
+  : "https://ethereum-rpc.publicnode.com";
 
 export interface EnsProfile {
   name: string | null;          // ENS name (e.g., "samuel.eth")
@@ -60,7 +64,9 @@ export async function resolveEnsProfile(address: string): Promise<EnsProfile> {
     const provider = new ethers.JsonRpcProvider(ETH_MAINNET_RPC);
 
     // Reverse lookup: address → ENS name
+    console.log("[ENS] Looking up address:", address);
     const ensName = await provider.lookupAddress(address);
+    console.log("[ENS] Resolved name:", ensName);
     if (!ensName) {
       cache.set(key, { profile, timestamp: Date.now() });
       return profile;
@@ -95,8 +101,8 @@ export async function resolveEnsProfile(address: string): Promise<EnsProfile> {
         }
       }
     }
-  } catch {
-    // ENS resolution failed — return empty profile
+  } catch (err) {
+    console.error("[ENS] Resolution failed:", err);
   }
 
   cache.set(key.toLowerCase(), { profile, timestamp: Date.now() });
@@ -111,17 +117,17 @@ export async function resolveEnsProfile(address: string): Promise<EnsProfile> {
 export function getSocialLinks(profile: EnsProfile): { label: string; url: string; icon: string }[] {
   const links: { label: string; url: string; icon: string }[] = [];
   if (profile.github) {
-    links.push({ label: profile.github, url: `https://github.com/${profile.github}`, icon: "🐙" });
+    links.push({ label: profile.github, url: `https://github.com/${profile.github}`, icon: "github" });
   }
   if (profile.twitter) {
     const handle = profile.twitter.startsWith("@") ? profile.twitter.slice(1) : profile.twitter;
-    links.push({ label: `@${handle}`, url: `https://x.com/${handle}`, icon: "𝕏" });
+    links.push({ label: `@${handle}`, url: `https://x.com/${handle}`, icon: "twitter" });
   }
   if (profile.discord) {
-    links.push({ label: profile.discord, url: "#", icon: "💬" });
+    links.push({ label: profile.discord, url: "#", icon: "discord" });
   }
   if (profile.url) {
-    links.push({ label: profile.url.replace(/^https?:\/\//, ""), url: profile.url, icon: "🌐" });
+    links.push({ label: profile.url.replace(/^https?:\/\//, ""), url: profile.url, icon: "website" });
   }
   return links;
 }

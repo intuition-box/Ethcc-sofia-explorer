@@ -26,14 +26,24 @@ interface EmbeddedWalletState {
 
 const EmbeddedWalletContext = createContext<EmbeddedWalletState | null>(null);
 
+// In dev mode, use VITE_DEV_WALLET to skip wallet connection
+const DEV_WALLET = import.meta.env.DEV ? import.meta.env.VITE_DEV_WALLET : undefined;
+
 export function EmbeddedWalletProvider({ children }: { children: ReactNode }) {
   const [wallet, setWallet] = useState<WalletConnection | null>(null);
-  const [address, setAddress] = useState(() => getEmbeddedAddress() ?? "");
+  const [address, setAddress] = useState(() => DEV_WALLET ?? getEmbeddedAddress() ?? "");
   const [balance, setBalance] = useState<string | null>(null);
+
+  // In dev mode, seed localStorage so pages that read WALLET_ADDRESS directly also work
+  useEffect(() => {
+    if (DEV_WALLET) {
+      localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, DEV_WALLET);
+    }
+  }, []);
   const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState("");
 
-  const needsUnlock = hasEmbeddedWallet() && !wallet;
+  const needsUnlock = DEV_WALLET ? false : hasEmbeddedWallet() && !wallet;
 
   const refreshBalance = useCallback(async () => {
     const addr = wallet?.address ?? address;

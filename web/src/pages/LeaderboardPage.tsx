@@ -292,7 +292,7 @@ export default function LeaderboardPage() {
         <button style={backBtn} onClick={() => navigate(-1)}>
           &#8249;
         </button>
-        <div style={title}>{liveData ? "Trust Sent" : "PnL Leaderboard"}</div>
+        <div style={title}>Trust Sent</div>
       </div>
 
       {/* Scrollable content */}

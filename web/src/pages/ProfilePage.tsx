@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, type CSSProperties } from "react";
 import { useNavigate } from "react-router-dom";
-import { C, R, glassSurface, FONT, getTrackStyle } from "../config/theme";
+import { C, R, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { STORAGE_KEYS } from "../config/constants";
 import { Ic } from "../components/ui/Icons";
 import { StorageService } from "../services/StorageService";
@@ -10,100 +10,83 @@ import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
 import { hasEmbeddedWallet, getEmbeddedAddress } from "../services/embeddedWallet";
 import { syncProfileFromChain } from "../services/profileSync";
+import { useFollow } from "../hooks/useFollow";
+import {
+  scrollContent, fluidContent, cardTitle, metaText, inCartBadge, glassInfoCard,
+  listColumn, glassListItem, trackBadge, avatarSmall, monoText,
+  truncateLabel, getInitials,
+} from "../styles/common";
 
 // ─── Styles ──────────────────────────────────────────
 
 const page: CSSProperties = {
-  flex: 1,
-  display: "flex",
-  flexDirection: "column",
-  background: "transparent",
-  color: C.textPrimary,
-  fontFamily: FONT,
-  overflow: "hidden",
+  flex: 1, display: "flex", flexDirection: "column",
+  background: "transparent", color: C.textPrimary, fontFamily: FONT, overflow: "hidden",
 };
-
 const settingsBtn: CSSProperties = {
-  width: 42,
-  height: 42,
-  borderRadius: 14,
-  background: C.surfaceGray,
-  border: "none",
-  color: C.textSecondary,
-  fontSize: 18,
-  cursor: "pointer",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  width: 42, height: 42, borderRadius: 14, background: C.surfaceGray,
+  border: "none", color: C.textSecondary, fontSize: 18,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
-
 const inviteBtn: CSSProperties = {
-  width: "calc(100% - 32px)",
-  height: 48,
-  borderRadius: R.btn,
-  background: C.flat,
-  color: "#0a0a0a",
-  fontSize: 15,
-  fontWeight: 600,
-  border: "none",
-  cursor: "pointer",
-  fontFamily: FONT,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 8,
-  margin: "16px",
-  boxSizing: "border-box" as const,
+  width: "calc(100% - 32px)", height: 48, borderRadius: R.btn,
+  background: C.flat, color: "#0a0a0a", fontSize: 15, fontWeight: 600,
+  border: "none", cursor: "pointer", fontFamily: FONT,
+  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+  margin: "16px", boxSizing: "border-box" as const,
 };
-
 const sectionTitle: CSSProperties = {
-  fontSize: 16,
-  fontWeight: 700,
-  padding: "20px 16px 10px",
-  color: C.textPrimary,
+  fontSize: 16, fontWeight: 700, padding: "20px 16px 10px", color: C.textPrimary,
 };
-
 const platformRow: CSSProperties = {
-  ...glassSurface,
-  margin: "0 16px 8px",
-  padding: "12px 16px",
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
+  ...glassSurface, margin: "0 16px 8px", padding: "12px 16px",
+  display: "flex", alignItems: "center", gap: 12,
 };
-
 const platformIcon: CSSProperties = {
-  width: 36,
-  height: 36,
-  borderRadius: R.md,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 18,
+  width: 36, height: 36, borderRadius: R.md,
+  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18,
 };
-
-const platformInfo: CSSProperties = {
-  flex: 1,
-  minWidth: 0,
-};
-
+const platformInfo: CSSProperties = { flex: 1, minWidth: 0 };
 const platformName: CSSProperties = {
-  fontSize: 14,
-  fontWeight: 600,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
-
 const platformDesc: CSSProperties = {
-  fontSize: 11,
-  color: C.textSecondary,
-  marginTop: 1,
-  whiteSpace: "nowrap",
-  overflow: "hidden",
-  textOverflow: "ellipsis",
+  fontSize: 11, color: C.textSecondary, marginTop: 1,
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
 };
-
+const heroBackground: CSSProperties = {
+  position: "absolute", top: 0, left: 0, right: 0, height: 200,
+  background: "#fff", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, zIndex: 0,
+};
+const heroSection: CSSProperties = {
+  background: "transparent", borderRadius: `0 0 ${R.xl}px ${R.xl}px`,
+  padding: "0 0 24px", color: "#0a0a0a", overflow: "hidden", boxSizing: "border-box",
+};
+const heroHeader: CSSProperties = {
+  display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "12px 20px 0",
+};
+const heroSubAddr: CSSProperties = {
+  fontSize: 12, color: "rgba(0,0,0,0.5)", fontFamily: "monospace", marginTop: 4,
+};
+const heroStatsRow: CSSProperties = {
+  display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12, padding: "0 20px",
+};
+const heroStatCell: CSSProperties = { flex: 1, textAlign: "center" };
+const heroStatValue: CSSProperties = { fontSize: 22, fontWeight: 700 };
+const heroStatLabel: CSSProperties = { fontSize: 11, opacity: 0.6, marginTop: 2 };
+const ensInfoCard: CSSProperties = {
+  ...glassSurface, margin: "0 16px 8px", padding: 16, textAlign: "center",
+};
+const ensConnectBtn: CSSProperties = {
+  padding: "10px 20px", borderRadius: R.btn, border: "none",
+  background: C.flat, color: "#0a0a0a", fontSize: 13, fontWeight: 600,
+  cursor: "pointer", fontFamily: FONT,
+};
+const ensFooter: CSSProperties = {
+  margin: "4px 16px 0", fontSize: 11, color: C.textTertiary, textAlign: "center",
+};
+const topicsWrap: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" };
+const sessionIcon: CSSProperties = { fontSize: 16, flexShrink: 0 };
 
 // ─── Component ───────────────────────────────────────
 
@@ -111,6 +94,8 @@ export default function ProfilePage() {
   const navigate = useNavigate();
 
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
+  const savedNickname = localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? "";
+  const { following } = useFollow();
   const [savedTopics, setSavedTopics] = useState(() => StorageService.loadTopics());
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
   const [publishedSessionIds, setPublishedSessionIds] = useState<string[]>(() => {
@@ -125,7 +110,6 @@ export default function ProfilePage() {
     } catch { return 0; }
   });
 
-  // Sync on-chain positions into localStorage on mount
   useEffect(() => {
     if (!walletAddress) return;
     syncProfileFromChain(walletAddress).then(() => {
@@ -138,10 +122,8 @@ export default function ProfilePage() {
     }).catch(() => {});
   }, [walletAddress]);
 
-  // Detect if connected via embedded wallet (no ENS possible)
   const isEmbeddedWallet = hasEmbeddedWallet() && getEmbeddedAddress()?.toLowerCase() === walletAddress.toLowerCase();
 
-  // ENS profile resolution — always try with wallet address, override with ensAddress if set
   const [ensAddress, setEnsAddress] = useState<string | null>(null);
   const ensLookupAddr = ensAddress ?? (walletAddress || null);
   const { profile: ensProfile, loading: ensLoading } = useEnsProfile(ensLookupAddr);
@@ -149,118 +131,77 @@ export default function ProfilePage() {
 
   const handleReconnectEns = async () => {
     try {
-      if (!window.ethereum) {
-        alert("No external wallet detected. Install MetaMask to connect your ENS.");
-        return;
-      }
+      if (!window.ethereum) { alert("No external wallet detected. Install MetaMask to connect your ENS."); return; }
       const { ethers } = await import("ethers");
       const provider = new ethers.BrowserProvider(window.ethereum);
       await provider.send("eth_requestAccounts", []);
       const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
-      setEnsAddress(addr);
-    } catch {
-      // User cancelled or no wallet
-    }
+      setEnsAddress(await signer.getAddress());
+    } catch { /* User cancelled */ }
   };
 
-  // Real vibe matches — on-chain published data only, not cart
   const votedTopicIds = useMemo<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]"); }
     catch { return []; }
   }, []);
-  const { matches: realMatches, loading: matchesLoading } = useVibeMatches(
-    savedTopics,
-    publishedSessionIds,
-    walletAddress,
-    votedTopicIds
-  );
-
+  const { matches: realMatches, loading: matchesLoading } = useVibeMatches(savedTopics, publishedSessionIds, walletAddress, votedTopicIds);
   const matchCount = realMatches.length > 0 ? realMatches.length : (walletAddress ? 0 : null);
 
   return (
     <div style={page}>
-      {/* Fixed color background */}
-      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 200, background: "#fff", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, zIndex: 0 }} />
+      <div style={heroBackground} />
 
-      {/* Scrollable content */}
-      <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 24, position: "relative", zIndex: 1 }}>
-      {/* Hero — same layout as VotePage */}
-      <div style={{ background: "transparent", borderRadius: `0 0 ${R.xl}px ${R.xl}px`, padding: "0 0 24px", color: "#0a0a0a", overflow: "hidden", boxSizing: "border-box" }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "12px 20px 0" }}>
-          <div style={{ fontSize: 60, fontWeight: 900, lineHeight: 1 }}>
-            {walletAddress ? (
-              <>{walletAddress.slice(0, 6)}...<br/>{walletAddress.slice(-4)}</>
-            ) : "Profile"}
+      <div style={scrollContent}>
+      <div style={heroSection}>
+        <div style={heroHeader}>
+          <div style={{ fontSize: savedNickname ? 42 : 60, fontWeight: 900, lineHeight: 1 }}>
+            {savedNickname || (walletAddress ? <>{walletAddress.slice(0, 6)}...<br/>{walletAddress.slice(-4)}</> : "Profile")}
           </div>
+          {savedNickname && walletAddress && (
+            <div style={heroSubAddr}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+          )}
           <button style={{ ...settingsBtn, background: "rgba(0,0,0,0.1)", flexShrink: 0, marginTop: 4 }} onClick={() => navigate("/settings")}>
             <Ic.Settings s={18} c="#0a0a0a" />
           </button>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 12, padding: "0 20px" }}>
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{topicNames.length || "-"}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Interests</div>
-          </div>
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{(publishedSessionIds.length + savedCart.size) || "-"}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Sessions</div>
-          </div>
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{voteCount || "-"}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Votes</div>
-          </div>
-          <div style={{ flex: 1, textAlign: "center" }}>
-            <div style={{ fontSize: 22, fontWeight: 700 }}>{matchesLoading ? "..." : (matchCount ?? "-")}</div>
-            <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2 }}>Matches</div>
-          </div>
+        <div style={heroStatsRow}>
+          <div style={heroStatCell}><div style={heroStatValue}>{topicNames.length || "-"}</div><div style={heroStatLabel}>Interests</div></div>
+          <div style={heroStatCell}><div style={heroStatValue}>{(publishedSessionIds.length + savedCart.size) || "-"}</div><div style={heroStatLabel}>Sessions</div></div>
+          <div style={heroStatCell}><div style={heroStatValue}>{voteCount || "-"}</div><div style={heroStatLabel}>Votes</div></div>
+          <div style={heroStatCell}><div style={heroStatValue}>{matchesLoading ? "..." : (matchCount ?? "-")}</div><div style={heroStatLabel}>Matches</div></div>
         </div>
       </div>
 
-      {/* Invite Button */}
-      <button style={inviteBtn} onClick={() => navigate("/invite")}>
-        Invite Nearby Participants
-      </button>
+      <button style={inviteBtn} onClick={() => navigate("/invite")}>Invite Nearby Participants</button>
 
       {/* Social Profiles (from ENS) */}
-      <div style={sectionTitle}>
-        {ensProfile?.name ? `${ensProfile.name}` : "Social Profiles"}
-      </div>
+      <div style={sectionTitle}>{ensProfile?.name ? `${ensProfile.name}` : "Social Profiles"}</div>
       {ensLoading && (
-        <div style={{ ...glassSurface, margin: "0 16px 8px", padding: 16, textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: C.textSecondary }}>Loading ENS profile...</div>
-        </div>
+        <div style={ensInfoCard}><div style={{ fontSize: 13, color: C.textSecondary }}>Loading ENS profile...</div></div>
       )}
-      {!ensLoading && socialLinks.length > 0 && socialLinks.map((link) => (
-        <a
-          key={link.label}
-          href={link.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ textDecoration: "none" }}
-        >
-          <div style={platformRow}>
-            <div style={{
-              ...platformIcon,
-              background: link.icon === "🐙" ? "rgba(51,51,51,0.2)"
-                : link.icon === "𝕏" ? "rgba(255,255,255,0.08)"
-                : link.icon === "💬" ? "rgba(88,101,242,0.2)"
-                : "rgba(255,255,255,0.08)",
-            }}>
-              <span style={{ fontSize: 20 }}>{link.icon}</span>
-            </div>
-            <div style={platformInfo}>
-              <div style={platformName}>{link.label}</div>
-              <div style={platformDesc}>
-                {link.icon === "🐙" ? "GitHub" : link.icon === "𝕏" ? "X / Twitter" : link.icon === "💬" ? "Discord" : "Website"}
+      {!ensLoading && socialLinks.length > 0 && socialLinks.map((link) => {
+        const iconMap: Record<string, { bg: string; el: React.ReactNode; label: string }> = {
+          github: { bg: "rgba(51,51,51,0.3)", el: <Ic.GitHub s={20} c={C.textPrimary} />, label: "GitHub" },
+          twitter: { bg: "rgba(255,255,255,0.08)", el: <Ic.XTwitter s={18} c={C.textPrimary} />, label: "X / Twitter" },
+          discord: { bg: "rgba(88,101,242,0.2)", el: <Ic.Discord s={20} c="#5865F2" />, label: "Discord" },
+          website: { bg: "rgba(255,255,255,0.08)", el: <Ic.Globe s={20} c={C.textPrimary} />, label: "Website" },
+        };
+        const info = iconMap[link.icon] ?? iconMap.website;
+        return (
+          <a key={link.label} href={link.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+            <div style={platformRow}>
+              <div style={{ ...platformIcon, background: info.bg }}>{info.el}</div>
+              <div style={platformInfo}>
+                <div style={platformName}>{link.label}</div>
+                <div style={platformDesc}>{info.label}</div>
               </div>
+              <Ic.Right s={16} c={C.textTertiary} />
             </div>
-            <Ic.Right s={16} c={C.textTertiary} />
-          </div>
-        </a>
-      ))}
+          </a>
+        );
+      })}
       {!ensLoading && socialLinks.length === 0 && (
-        <div style={{ ...glassSurface, margin: "0 16px 8px", padding: 16, textAlign: "center" }}>
+        <div style={ensInfoCard}>
           <div style={{ fontSize: 13, color: C.textSecondary, marginBottom: isEmbeddedWallet ? 12 : 0 }}>
             {isEmbeddedWallet
               ? "Embedded wallet has no ENS. Connect an external wallet to load your socials."
@@ -269,44 +210,47 @@ export default function ProfilePage() {
                 : "Connect wallet to load your ENS profile"}
           </div>
           {isEmbeddedWallet && (
-            <button
-              onClick={handleReconnectEns}
-              style={{
-                padding: "10px 20px", borderRadius: R.btn, border: "none",
-                background: C.flat, color: "#0a0a0a", fontSize: 13, fontWeight: 600,
-                cursor: "pointer", fontFamily: FONT,
-              }}
-            >
-              Connect with ENS wallet
-            </button>
+            <button onClick={handleReconnectEns} style={ensConnectBtn}>Connect with ENS wallet</button>
           )}
         </div>
       )}
-      {ensProfile?.name && (
-        <div style={{ margin: "4px 16px 0", fontSize: 11, color: C.textTertiary, textAlign: "center" }}>
-          Loaded from ENS: {ensProfile.name}
-        </div>
-      )}
+      {ensProfile?.name && <div style={ensFooter}>Loaded from ENS: {ensProfile.name}</div>}
 
       {/* My Interests */}
       {topicNames.length > 0 && (
         <>
           <div style={sectionTitle}>My Interests</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" }}>
+          <div style={topicsWrap}>
             {topicNames.map((name) => {
               const ts = getTrackStyle(name);
-              return (
-                <span key={name} style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  padding: "6px 12px", borderRadius: R.btn, fontSize: 12, fontWeight: 500,
-                  background: `${ts.color}22`, color: ts.color, fontFamily: FONT,
-                }}>
-                  {ts.icon} {name}
-                </span>
-              );
+              return <span key={name} style={trackBadge(ts.color)}>{ts.icon} {name}</span>;
             })}
           </div>
         </>
+      )}
+
+      {/* Following */}
+      <div style={sectionTitle}>Following ({following.length})</div>
+      {following.length > 0 ? (
+        <div style={listColumn}>
+          {following.map((f) => {
+            const short = truncateLabel(f.label);
+            const initials = getInitials(f.label);
+            return (
+              <div key={f.label} style={glassListItem} onClick={() => navigate("/vibes")}>
+                <div style={avatarSmall(avatarColor(f.label))}>{initials}</div>
+                <div style={fluidContent}><div style={monoText}>{short}</div></div>
+                {f.published ? <Ic.Check s={14} c={C.success} /> : <span style={inCartBadge}>In cart</span>}
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={glassInfoCard}>
+          <Ic.People s={24} c={C.textTertiary} />
+          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 8 }}>You're not following anyone yet.</div>
+          <div style={{ fontSize: 11, color: C.textTertiary, marginTop: 4 }}>Visit other profiles and tap Follow to see them here.</div>
+        </div>
       )}
 
       {/* My Sessions (published + in cart) */}
@@ -316,25 +260,18 @@ export default function ProfilePage() {
         return (
         <>
           <div style={sectionTitle}>My Sessions</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "0 16px" }}>
+          <div style={listColumn}>
             {sessions.filter((s) => allMySessionIds.has(s.id)).map((s) => {
               const ts = getTrackStyle(s.track);
               const isPublished = publishedSessionIds.includes(s.id);
               return (
-                <div
-                  key={s.id}
-                  onClick={() => navigate(`/session/${s.id}`)}
-                  style={{ ...glassSurface, padding: 12, display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}
-                >
-                  <span style={{ fontSize: 16, flexShrink: 0 }}>{ts.icon}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
-                    <div style={{ fontSize: 11, color: C.textSecondary, marginTop: 2 }}>{s.startTime} · {s.stage}</div>
+                <div key={s.id} onClick={() => navigate(`/session/${s.id}`)} style={glassListItem}>
+                  <span style={sessionIcon}>{ts.icon}</span>
+                  <div style={fluidContent}>
+                    <div style={cardTitle}>{s.title}</div>
+                    <div style={metaText}>{s.startTime} · {s.stage}</div>
                   </div>
-                  {isPublished
-                    ? <Ic.Check s={14} c={C.success} />
-                    : <span style={{ fontSize: 10, color: C.flat, fontWeight: 600 }}>In cart</span>
-                  }
+                  {isPublished ? <Ic.Check s={14} c={C.success} /> : <span style={inCartBadge}>In cart</span>}
                 </div>
               );
             })}

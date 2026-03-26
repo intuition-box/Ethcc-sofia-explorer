@@ -411,9 +411,122 @@ export async function addIntuitionChain() {
   ]);
 }
 
+// ─── Follow constants ────────────────────────────────────────────
+// Triple pattern: [I] --follow--> [TargetUserAtom]
+const FOLLOW_PREDICATE_ID = "0xffd07650dc7ab341184362461ebf52144bf8bcac5a19ef714571de15f1319260";
+const I_ATOM_ID = "0x7ab197b346d386cd5926dbfeeb85dade42f113c7ed99ff2046a5123bb5cd016b";
+
+/**
+ * Create a follow triple on-chain: [I] --follow--> [targetAtom]
+ * Accepts either a term_id (bytes32) or a wallet address (resolves the atom).
+ * Uses the Sofia Fee Proxy for gas-less UX.
+ */
+export async function createFollowTriple(
+  wallet: WalletConnection,
+  targetAddressOrTermId: string,
+  depositAmount?: bigint,
+  onStep?: (step: string) => void,
+): Promise<{ hash: string; blockNumber: number }> {
+  const deposit = depositAmount ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+
+  // If it looks like an address, resolve to atom term_id
+  let targetTermId = targetAddressOrTermId;
+  if (/^0x[a-fA-F0-9]{40}$/.test(targetAddressOrTermId)) {
+    onStep?.("Resolving target atom...");
+    targetTermId = await getUserAtomId(wallet.multiVault, targetAddressOrTermId, wallet.ethers);
+  }
+
+  onStep?.("Approving proxy...");
+  try { await approveProxy(wallet.multiVault); } catch { /* already approved */ }
+
+  const tripleCost = await wallet.multiVault.getTripleCost();
+  const assets = [deposit];
+  const totalDeposit = deposit;
+  const multiVaultCost = tripleCost + totalDeposit;
+  const totalCost: bigint = await wallet.proxy.getTotalCreationCost(
+    countNonZero(assets), totalDeposit, multiVaultCost
+  );
+
+  onStep?.("Creating follow triple...");
+  const tx = await wallet.proxy.createTriples(
+    wallet.address,
+    [I_ATOM_ID],
+    [FOLLOW_PREDICATE_ID],
+    [targetTermId],
+    assets,
+    CHAIN_CONFIG.CURVE_ID,
+    { value: totalCost }
+  );
+
+  onStep?.("Waiting for confirmation...");
+  const receipt = await tx.wait();
+  return { hash: tx.hash, blockNumber: receipt.blockNumber };
+}
+
+/**
+ * Query who a given address follows.
+ * Finds all triples [I] --follow--> [Target] where the user has a position (shares > 0).
+ * Uses term_id exclusively — never label.
+ * account_id is case-sensitive in GraphQL, so we use _ilike.
+ */
+export async function fetchFollowing(
+  userAddress: string,
+): Promise<{ termId: string; label: string }[]> {
+  const gqlUrl = import.meta.env.DEV ? `${window.location.origin}/api/graphql` : "https://mainnet.intuition.sh/v1/graphql";
+
+  // Step 1: Get all follow triples [I] --follow--> [?]
+  const triplesResp = await fetch(gqlUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `query {
+        triples(where: {
+          subject: { term_id: { _eq: "${I_ATOM_ID}" } }
+          predicate: { term_id: { _eq: "${FOLLOW_PREDICATE_ID}" } }
+        }, limit: 1000) {
+          term_id
+          object { term_id label }
+        }
+      }`,
+    }),
+  });
+  const triplesJson = await triplesResp.json();
+  const triples = triplesJson.data?.triples ?? [];
+  if (triples.length === 0) return [];
+
+  // Step 2: Get user's positions (all of them) — _ilike for case-insensitive match
+  const posResp = await fetch(gqlUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      query: `query {
+        positions(where: {
+          account_id: { _ilike: "${userAddress}" }
+          shares: { _gt: "0" }
+        }, limit: 500) {
+          term_id
+        }
+      }`,
+    }),
+  });
+  const posJson = await posResp.json();
+  const positions = posJson.data?.positions ?? [];
+  const userTermIds = new Set(positions.map((p: { term_id: string }) => p.term_id));
+
+  // Step 3: Return objects of triples where user has a position on the triple's term_id
+  return triples
+    .filter((t: { term_id: string }) => userTermIds.has(t.term_id))
+    .map((t: { object: { term_id: string; label: string } }) => ({
+      termId: t.object.term_id,
+      label: t.object.label,
+    }));
+}
+
 // ─── Re-exports ──────────────────────────────────────────────────
 export {
   TRACK_ATOM_IDS,
   SESSION_ATOM_IDS,
   PREDICATES,
+  FOLLOW_PREDICATE_ID,
+  I_ATOM_ID,
 };

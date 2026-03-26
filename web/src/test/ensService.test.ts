@@ -21,7 +21,7 @@ describe("ensService", () => {
       expect(links[0]).toEqual({
         label: "octocat",
         url: "https://github.com/octocat",
-        icon: "🐙",
+        icon: "github",
       });
     });
 
@@ -63,7 +63,7 @@ describe("ensService", () => {
       };
       const links = getSocialLinks(profile);
       expect(links).toHaveLength(4); // github, twitter, discord, url
-      expect(links.map((l) => l.icon)).toEqual(["🐙", "𝕏", "💬", "🌐"]);
+      expect(links.map((l) => l.icon)).toEqual(["github", "twitter", "discord", "website"]);
     });
   });
 });

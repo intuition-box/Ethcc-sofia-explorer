@@ -84,6 +84,11 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/graphql/, "/v1/graphql"),
       },
+      "/api/eth-rpc": {
+        target: "https://ethereum-rpc.publicnode.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/eth-rpc/, "/"),
+      },
     },
   },
 });
