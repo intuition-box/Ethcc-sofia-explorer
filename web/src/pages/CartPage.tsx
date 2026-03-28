@@ -12,6 +12,7 @@ import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTriples, TRACK_ATOM_IDS } from "../services/intuition";
 import { avatarColor } from "../config/theme";
 import { resolveTopicAtomIds } from "../services/voteService";
+import { formatTxError } from "../utils/txErrors";
 import {
   scrollContent,
   fluidContent,
@@ -134,15 +135,11 @@ const summaryTitle: CSSProperties = { fontSize: 14, fontWeight: 700, marginBotto
 
 const summaryValue = (color: string): CSSProperties => ({ color, fontWeight: 600 });
 
-const summaryTotal: CSSProperties = { fontWeight: 700, color: C.textPrimary };
 
 const summaryRowNoBorder: CSSProperties = { ...summaryRow, borderBottom: "none" };
 
 const estimatedCost: CSSProperties = { fontSize: 15, fontWeight: 800, color: C.trust };
 
-const publishErrorText: CSSProperties = {
-  fontSize: 12, color: C.error, marginBottom: 8, textAlign: "center",
-};
 
 const successBtn: CSSProperties = { ...btnPill, background: C.success, color: "#fff" };
 
@@ -151,6 +148,64 @@ const connectBtn: CSSProperties = { ...btnPill, background: "#ffa7b1", color: "#
 const publishBtn = (isPublishing: boolean): CSSProperties => ({
   ...btnPill, background: "#ffa7b1", color: "#0a0a0a", opacity: isPublishing ? 0.7 : 1,
 });
+
+const errorCard: CSSProperties = {
+  ...glassSurface, margin: "0 20px 16px",
+  borderLeft: `3px solid ${C.error}`, boxSizing: "border-box" as const,
+};
+const errorCardHeader: CSSProperties = {
+  display: "flex", justifyContent: "space-between", alignItems: "center",
+  padding: "12px 16px 6px",
+};
+const errorCardTitle: CSSProperties = {
+  fontSize: 13, fontWeight: 700, color: C.error,
+  display: "flex", alignItems: "center", gap: 6,
+};
+const errorStepBadge: CSSProperties = {
+  display: "inline-block", padding: "2px 8px",
+  borderRadius: R.sm, background: C.errorLight,
+  color: C.error, fontSize: 11, fontWeight: 600,
+  margin: "0 16px 8px",
+};
+const errorMessage: CSSProperties = {
+  fontSize: 13, color: C.textPrimary, lineHeight: 1.6,
+  padding: "0 16px 10px",
+};
+const rawToggle: CSSProperties = {
+  background: "none", border: "none", cursor: "pointer",
+  fontSize: 11, color: C.textTertiary, padding: "0 16px 8px",
+  display: "block", fontFamily: FONT, textAlign: "left" as const,
+};
+const rawErrorBox: CSSProperties = {
+  margin: "0 16px 10px", padding: 10,
+  background: "rgba(0,0,0,0.35)", borderRadius: R.sm,
+  fontSize: 10, color: C.textTertiary, fontFamily: "monospace",
+  wordBreak: "break-all" as const, lineHeight: 1.4,
+  maxHeight: 90, overflow: "auto",
+};
+const errorActions: CSSProperties = {
+  display: "flex", gap: 8, padding: "10px 16px 14px",
+  borderTop: `1px solid ${C.border}`,
+};
+const sendTrustBtn: CSSProperties = {
+  flex: 1, height: 36, borderRadius: R.btn,
+  background: C.errorLight, border: `1px solid ${C.error}`,
+  color: C.error, fontSize: 13, fontWeight: 600,
+  cursor: "pointer", fontFamily: FONT,
+};
+const retryBtn: CSSProperties = {
+  flex: 1, height: 36, borderRadius: R.btn,
+  background: C.surfaceGray, border: "none",
+  color: C.textPrimary, fontSize: 13, fontWeight: 600,
+  cursor: "pointer", fontFamily: FONT,
+};
+const dismissBtn: CSSProperties = {
+  width: 26, height: 26, borderRadius: R.sm,
+  background: C.errorLight, border: "none",
+  color: C.error, fontSize: 14, fontWeight: 700,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+  fontFamily: FONT, flexShrink: 0,
+};
 
 // ─── Component ──────────────────────────────────────
 export default function CartPage() {
@@ -165,6 +220,9 @@ export default function CartPage() {
   const [publishStatus, setPublishStatus] = useState("");
   const [publishDone, setPublishDone] = useState(false);
   const [publishError, setPublishError] = useState("");
+  const [failedStep, setFailedStep] = useState("");
+  const [rawError, setRawError] = useState("");
+  const [showRawError, setShowRawError] = useState(false);
 
   // Reload pending topics when page gets focus (coming back from other pages)
   useEffect(() => {
@@ -241,9 +299,16 @@ export default function CartPage() {
   const sessionCount = cartSessions.length; // sessions → triples
   const ratingCount = cartRatings.length; // ratings → deposit into existing triple vaults
 
-  const [realCost, setRealCost] = useState<string | null>(null);
+  interface CostBreakdown {
+    mvFees: bigint;     // MultiVault creation fees (atom + triples)
+    deposits: bigint;   // User deposits → vault shares
+    sofiaFees: bigint;  // Sofia proxy fees (fixed + 5%)
+    total: bigint;
+  }
+  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
+
   useEffect(() => {
-    if (tripleCount === 0) { setRealCost(null); return; }
+    if (tripleCount === 0) { setCostBreakdown(null); return; }
     let cancelled = false;
     import("ethers").then(async ({ ethers }) => {
       const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
@@ -257,60 +322,224 @@ export default function CartPage() {
       );
       const mv = new ethers.Contract(
         CHAIN_CONFIG.MULTIVAULT,
-        ["function getTripleCost() view returns (uint256)"],
+        [
+          "function getTripleCost() view returns (uint256)",
+          "function getAtomCost() view returns (uint256)",
+        ],
         provider
       );
 
       const deposit = BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
-      let total = 0n;
+      let mvFees = 0n;
+      let deposits = 0n;
+      let sofiaFees = 0n;
 
-      // Cost for deposits (interests + topics)
+      const [tripleCost, atomCost]: [bigint, bigint] = await Promise.all([
+        mv.getTripleCost(),
+        mv.getAtomCost(),
+      ]);
+
+      // User atom creation (worst case: atom not yet on-chain)
+      mvFees += atomCost;
+
+      // Deposits on interests + topics (depositBatch, no creation)
       if (depositCount > 0) {
         const n = BigInt(depositCount);
         const totalDep = deposit * n;
         const fee: bigint = await proxy.calculateDepositFee(n, totalDep);
-        total += totalDep + fee;
+        deposits += totalDep;
+        sofiaFees += fee;
       }
 
-      // Cost for session triples (creation)
+      // Session triples (createTriples: creation + deposit)
       if (sessionCount > 0) {
-        const tripleCost: bigint = await mv.getTripleCost();
         const n = BigInt(sessionCount);
         const totalDep = deposit * n;
-        const mvCost = (tripleCost + deposit) * n;
+        const mvCost = (tripleCost * n) + totalDep;
         const triCost: bigint = await proxy.getTotalCreationCost(n, totalDep, mvCost);
-        total += triCost;
+        mvFees += tripleCost * n;
+        deposits += totalDep;
+        sofiaFees += triCost - tripleCost * n - totalDep;
       }
 
-      // Cost for rating deposits (deposit into existing triple vaults, 0.001 TRUST each)
+      // Follow triples (createTriples: creation + deposit)
+      if (cartFollows.length > 0) {
+        const n = BigInt(cartFollows.length);
+        const totalDep = deposit * n;
+        const mvCost = (tripleCost * n) + totalDep;
+        const triCost: bigint = await proxy.getTotalCreationCost(n, totalDep, mvCost);
+        mvFees += tripleCost * n;
+        deposits += totalDep;
+        sofiaFees += triCost - tripleCost * n - totalDep;
+      }
+
+      // Rating deposits (depositBatch into existing triple vaults, 0.001 TRUST each)
       if (ratingCount > 0) {
         const ratingDeposit = ethers.parseEther("0.001");
         const n = BigInt(ratingCount);
         const totalRatingDep = ratingDeposit * n;
-        // Ratings go through proxy depositBatch — add proxy fee
         try {
           const fee: bigint = await proxy.calculateDepositFee(n, totalRatingDep);
-          total += totalRatingDep + fee;
+          deposits += totalRatingDep;
+          sofiaFees += fee;
         } catch {
-          // Fallback: just the deposit amount without fee
-          total += totalRatingDep;
+          deposits += totalRatingDep;
         }
       }
 
       if (cancelled) return;
-      const trustAmount = Number(total) / 1e18;
-      setRealCost(trustAmount < 0.01 ? trustAmount.toFixed(4) : trustAmount.toFixed(2));
+      setCostBreakdown({ mvFees, deposits, sofiaFees, total: mvFees + deposits + sofiaFees });
     }).catch(() => {
-      if (!cancelled) setRealCost(null);
+      if (!cancelled) setCostBreakdown(null);
     });
     return () => { cancelled = true; };
-  }, [depositCount, sessionCount, ratingCount, tripleCount]);
+  }, [depositCount, sessionCount, ratingCount, cartFollows.length, tripleCount]);
+
+  const clearError = () => {
+    setPublishError("");
+    setFailedStep("");
+    setRawError("");
+    setShowRawError(false);
+  };
+
+  const isInsufficientFunds = /insufficient.funds|insufficient_funds|SofiaFeeProxy_InsufficientValue/i.test(rawError);
+
+  async function handlePublish() {
+    if (!wallet || publishing) return;
+    clearError();
+    setPublishing(true);
+    try {
+      // 1. Deposit on track atoms (interests)
+      const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
+      if (trackAtomIds.length > 0) {
+        setPublishStatus(`Depositing on ${trackAtomIds.length} interests...`);
+        await depositOnAtoms(wallet, trackAtomIds);
+      }
+
+      // 2. Deposit on topic atoms (votes)
+      if (cartTopics.length > 0) {
+        const { resolved } = resolveTopicAtomIds(cartTopics.map((t) => t.id));
+        if (resolved.length > 0) {
+          setPublishStatus(`Depositing on ${resolved.length} topics...`);
+          await depositOnAtoms(wallet, resolved.map((r) => r.atomId));
+        }
+        const pubVotes: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]");
+        for (const t of cartTopics) {
+          if (!pubVotes.includes(t.id)) pubVotes.push(t.id);
+        }
+        localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify(pubVotes));
+      }
+
+      // 3. Create attending triples (sessions)
+      if (cartSessions.length > 0) {
+        setPublishStatus(`Creating ${cartSessions.length} session triples...`);
+        const nickname = localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? undefined;
+        const userAtomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers, nickname);
+        const triples = buildProfileTriples(userAtomId, [], cartSessions.map((s) => s.id));
+        if (triples.length > 0) {
+          await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
+        }
+        const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
+        for (const s of cartSessions) {
+          if (!published.includes(s.id)) published.push(s.id);
+        }
+        localStorage.setItem(STORAGE_KEYS.PUBLISHED_SESSIONS, JSON.stringify(published));
+      }
+
+      // 4. Deposit on rating triple vaults
+      if (cartRatings.length > 0) {
+        setPublishStatus(`Depositing ${cartRatings.length} ratings...`);
+        const ratingTripleIds: string[] = [];
+        for (const { session: s, rating: r } of cartRatings) {
+          const tripleData = ratingsGraph.sessionRatingTriples[s.id]?.[String(r)];
+          if (tripleData) {
+            const tripleId = await wallet.multiVault.calculateTripleId(
+              tripleData.subjectId, tripleData.predicateId, tripleData.objectId
+            );
+            ratingTripleIds.push(tripleId);
+          }
+        }
+        if (ratingTripleIds.length > 0) {
+          const depositPerRating = wallet.ethers.parseEther("0.001");
+          const n = BigInt(ratingTripleIds.length);
+          const totalDeposit = depositPerRating * n;
+          const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
+          const curveIds = ratingTripleIds.map(() => CHAIN_CONFIG.CURVE_ID);
+          const assets = ratingTripleIds.map(() => depositPerRating);
+          const minShares = ratingTripleIds.map(() => 0n);
+          const tx = await wallet.proxy.depositBatch(
+            wallet.address, ratingTripleIds, curveIds, assets, minShares,
+            { value: totalDeposit + fee }
+          );
+          await tx.wait();
+        }
+      }
+
+      // Move pending topics to published topics
+      try {
+        const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
+        if (pending.length > 0) {
+          const existingTopics = StorageService.loadTopics();
+          for (const t of pending) existingTopics.add(t);
+          StorageService.saveTopics(existingTopics);
+          localStorage.removeItem(STORAGE_KEYS.PENDING_TOPICS);
+        }
+      } catch { /* ignore */ }
+
+      clearCart();
+      setPendingTopics([]);
+      localStorage.removeItem(STORAGE_KEYS.VOTES);
+      localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
+      setPublishDone(true);
+      setPublishStatus("");
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e);
+      setFailedStep(publishStatus);
+      setRawError(raw);
+      setPublishError(formatTxError(e));
+    } finally {
+      setPublishing(false);
+    }
+  }
 
   return (
     <div style={page}>
       <div style={topSpacer} />
 
       <div style={scrollContent}>
+
+        {/* ── Error card ──────────────────────── */}
+        {publishError && !publishing && (
+          <div style={errorCard}>
+            <div style={errorCardHeader}>
+              <span style={errorCardTitle}>Transaction failed</span>
+              <button style={dismissBtn} onClick={clearError}>×</button>
+            </div>
+            {failedStep && (
+              <span style={errorStepBadge}>
+                Étape : {failedStep}
+              </span>
+            )}
+            <div style={errorMessage}>{publishError}</div>
+            <button style={rawToggle} onClick={() => setShowRawError((v) => !v)}>
+              {showRawError ? "▲ Masquer" : "▼ Voir"} l'erreur brute
+            </button>
+            {showRawError && (
+              <div style={rawErrorBox}>{rawError}</div>
+            )}
+            <div style={errorActions}>
+              {isInsufficientFunds && (
+                <button style={sendTrustBtn} onClick={() => navigate("/send")}>
+                  Envoyer du TRUST
+                </button>
+              )}
+              <button style={retryBtn} onClick={handlePublish}>
+                ↺ Réessayer
+              </button>
+            </div>
+          </div>
+        )}
+
         {isEmpty && (
           <div style={emptyState}>
             <div style={emptyIcon}>🛒</div>
@@ -505,175 +734,129 @@ export default function CartPage() {
         )}
 
         {/* ── Transaction summary ────────────── */}
-        {tripleCount > 0 && (
-          <div style={summaryCard}>
-            <div style={summaryTitle}>
-              On-Chain Summary
-            </div>
-            <div style={summaryRow}>
-              <span>Interests</span>
-              <span style={summaryValue(C.textPrimary)}>{topicList.length}</span>
-            </div>
-            <div style={summaryRow}>
-              <span>Supported topics</span>
-              <span style={summaryValue(C.textPrimary)}>{cartTopics.length}</span>
-            </div>
-            <div style={summaryRow}>
-              <span>Sessions</span>
-              <span style={summaryValue(C.textPrimary)}>{cartSessions.length}</span>
-            </div>
-            {cartRatings.length > 0 && (
-              <div style={summaryRow}>
-                <span>Ratings</span>
-                <span style={summaryValue(C.flat)}>{cartRatings.length}</span>
+        {tripleCount > 0 && (() => {
+          // Static fallback breakdown using known on-chain constants
+          // MultiVault: 0.1 per creation (atom + triple), Proxy: 0.1 fixed/deposit + 5%
+          const DEP = Number(DEFAULT_DEPOSIT_PER_TRIPLE) / 1e18; // 0.1 TRUST
+          const tripleOps = sessionCount + cartFollows.length;
+          const staticMvFees = (1 + tripleOps) * 0.1; // user atom + all triples
+          const staticDeposits = (depositCount + tripleOps) * DEP + ratingCount * 0.001;
+          const staticDepositOps = depositCount + tripleOps + ratingCount;
+          const staticSofiaFees = staticDepositOps * 0.1 + staticDeposits * 0.05;
+          const staticTotal = staticMvFees + staticDeposits + staticSofiaFees;
+
+          const fmtBig = (v: bigint) => {
+            const n = Number(v) / 1e18;
+            return n.toFixed(n < 0.01 ? 4 : 3);
+          };
+          const fmtNum = (v: number) => v.toFixed(v < 0.01 ? 4 : 3);
+          const bd = costBreakdown;
+
+          return (
+            <div style={summaryCard}>
+              <div style={summaryTitle}>On-Chain Summary</div>
+
+              {topicList.length > 0 && (
+                <div style={summaryRow}>
+                  <span>Interests</span>
+                  <span style={summaryValue(C.textPrimary)}>{topicList.length} × deposit</span>
+                </div>
+              )}
+              {cartTopics.length > 0 && (
+                <div style={summaryRow}>
+                  <span>Supported topics</span>
+                  <span style={summaryValue(C.textPrimary)}>{cartTopics.length} × deposit</span>
+                </div>
+              )}
+              {cartSessions.length > 0 && (
+                <div style={summaryRow}>
+                  <span>Sessions</span>
+                  <span style={summaryValue(C.textPrimary)}>{cartSessions.length} × triple</span>
+                </div>
+              )}
+              {cartRatings.length > 0 && (
+                <div style={summaryRow}>
+                  <span>Ratings</span>
+                  <span style={summaryValue(C.flat)}>{cartRatings.length} × deposit</span>
+                </div>
+              )}
+              {cartFollows.length > 0 && (
+                <div style={summaryRow}>
+                  <span>Following</span>
+                  <span style={summaryValue(C.primary)}>{cartFollows.length} × triple</span>
+                </div>
+              )}
+
+              {/* Cost breakdown separator */}
+              <div style={{ ...summaryRow, paddingTop: 12, paddingBottom: 4, borderBottom: "none" }}>
+                <span style={{ fontSize: 11, color: C.textTertiary, textTransform: "uppercase" as const, letterSpacing: 0.8 }}>
+                  Cost breakdown
+                </span>
+                <span style={{ fontSize: 11, color: C.textTertiary }}>
+                  via Sofia proxy
+                </span>
               </div>
-            )}
-            {cartFollows.length > 0 && (
+
               <div style={summaryRow}>
-                <span>Following</span>
-                <span style={summaryValue(C.primary)}>{cartFollows.length}</span>
+                <span>MultiVault fees</span>
+                <span style={summaryValue(C.textSecondary)}>
+                  {bd ? `${fmtBig(bd.mvFees)} TRUST` : `~${fmtNum(staticMvFees)} TRUST`}
+                  <span style={{ fontSize: 10, color: C.textTertiary, marginLeft: 4 }}>
+                    (0.1 × {1 + tripleOps} ops*)
+                  </span>
+                </span>
               </div>
-            )}
-            <div style={summaryRow}>
-              <span>Network</span>
-              <span style={summaryValue(C.trust)}>Intuition L3 (1155)</span>
+
+              <div style={summaryRow}>
+                <span>
+                  Your deposits
+                  <span style={{ fontSize: 10, color: C.trust, marginLeft: 4 }}>→ vault shares</span>
+                </span>
+                <span style={summaryValue(C.trust)}>
+                  {bd ? `${fmtBig(bd.deposits)} TRUST` : `~${fmtNum(staticDeposits)} TRUST`}
+                  <span style={{ fontSize: 10, color: C.textTertiary, marginLeft: 4 }}>
+                    (récupérables)
+                  </span>
+                </span>
+              </div>
+
+              <div style={summaryRow}>
+                <span>
+                  Sofia proxy fees
+                  <span style={{ fontSize: 10, color: C.textTertiary, marginLeft: 4 }}>0.1/op + 5%</span>
+                </span>
+                <span style={summaryValue(C.textSecondary)}>
+                  {bd ? `${fmtBig(bd.sofiaFees)} TRUST` : `~${fmtNum(staticSofiaFees)} TRUST`}
+                </span>
+              </div>
+
+              <div style={summaryRowNoBorder}>
+                <span style={{ fontWeight: 700 }}>Total estimé</span>
+                <span style={estimatedCost}>
+                  {bd ? `${fmtBig(bd.total)} TRUST` : `~${fmtNum(staticTotal)} TRUST`}
+                </span>
+              </div>
+
+              <div style={{ fontSize: 10, color: C.textTertiary, paddingTop: 6, lineHeight: 1.5 }}>
+                * inclut 1 atom wallet (si pas encore créé) · Network: Intuition L3 ({CHAIN_CONFIG.CHAIN_ID})
+              </div>
             </div>
-            <div style={summaryRow}>
-              <span>Total triples</span>
-              <span style={summaryTotal}>{tripleCount}</span>
-            </div>
-            <div style={summaryRowNoBorder}>
-              <span>Estimated cost</span>
-              <span style={estimatedCost}>
-                {realCost ? `~${realCost} TRUST` : `~${(tripleCount * 0.1).toFixed(1)} TRUST`}
-              </span>
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {tripleCount > 0 && (
         <div style={bottomBar}>
-          {publishError && (
-            <div style={publishErrorText}>{publishError}</div>
-          )}
           {publishDone ? (
-            <button
-              style={successBtn}
-              onClick={() => navigate("/vote")}
-            >
+            <button style={successBtn} onClick={() => navigate("/vote")}>
               Published! View My Votes
             </button>
           ) : !isConnected ? (
-            <button
-              onClick={openWalletModal}
-              style={connectBtn}
-            >
+            <button onClick={openWalletModal} style={connectBtn}>
               Connect Wallet to Publish
             </button>
           ) : (
-            <button
-              onClick={async () => {
-                if (!wallet || publishing) return;
-                setPublishing(true);
-                setPublishError("");
-                try {
-                  // 1. Deposit on track atoms (interests)
-                  const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
-                  if (trackAtomIds.length > 0) {
-                    setPublishStatus(`Depositing on ${trackAtomIds.length} interests...`);
-                    await depositOnAtoms(wallet, trackAtomIds);
-                  }
-
-                  // 2. Deposit on topic atoms (votes)
-                  if (cartTopics.length > 0) {
-                    const { resolved } = resolveTopicAtomIds(cartTopics.map((t) => t.id));
-                    if (resolved.length > 0) {
-                      setPublishStatus(`Depositing on ${resolved.length} topics...`);
-                      await depositOnAtoms(wallet, resolved.map((r) => r.atomId));
-                    }
-                    // Mark topics as published on-chain
-                    const pubVotes: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]");
-                    for (const t of cartTopics) {
-                      if (!pubVotes.includes(t.id)) pubVotes.push(t.id);
-                    }
-                    localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify(pubVotes));
-                  }
-
-                  // 3. Create attending triples (sessions)
-                  if (cartSessions.length > 0) {
-                    setPublishStatus(`Creating ${cartSessions.length} session triples...`);
-                    const userAtomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers);
-                    const triples = buildProfileTriples(userAtomId, [], cartSessions.map((s) => s.id));
-                    if (triples.length > 0) {
-                      await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
-                    }
-                    // Mark sessions as permanently published
-                    const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
-                    for (const s of cartSessions) {
-                      if (!published.includes(s.id)) published.push(s.id);
-                    }
-                    localStorage.setItem(STORAGE_KEYS.PUBLISHED_SESSIONS, JSON.stringify(published));
-                  }
-
-                  // 4. Deposit on rating triple vaults
-                  if (cartRatings.length > 0) {
-                    setPublishStatus(`Depositing ${cartRatings.length} ratings...`);
-                    const ratingTripleIds: string[] = [];
-                    for (const { session: s, rating: r } of cartRatings) {
-                      const tripleData = ratingsGraph.sessionRatingTriples[s.id]?.[String(r)];
-                      if (tripleData) {
-                        const tripleId = await wallet.multiVault.calculateTripleId(
-                          tripleData.subjectId, tripleData.predicateId, tripleData.objectId
-                        );
-                        ratingTripleIds.push(tripleId);
-                      }
-                    }
-                    if (ratingTripleIds.length > 0) {
-                      const depositPerRating = wallet.ethers.parseEther("0.001");
-                      const n = BigInt(ratingTripleIds.length);
-                      const totalDeposit = depositPerRating * n;
-                      const fee: bigint = await wallet.proxy.calculateDepositFee(n, totalDeposit);
-                      const curveIds = ratingTripleIds.map(() => CHAIN_CONFIG.CURVE_ID);
-                      const assets = ratingTripleIds.map(() => depositPerRating);
-                      const minShares = ratingTripleIds.map(() => 0n);
-
-                      const tx = await wallet.proxy.depositBatch(
-                        wallet.address, ratingTripleIds, curveIds, assets, minShares,
-                        { value: totalDeposit + fee }
-                      );
-                      await tx.wait();
-                    }
-                  }
-
-                  // Move pending topics to published topics
-                  try {
-                    const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
-                    if (pending.length > 0) {
-                      const existingTopics = StorageService.loadTopics();
-                      for (const t of pending) existingTopics.add(t);
-                      StorageService.saveTopics(existingTopics);
-                      localStorage.removeItem(STORAGE_KEYS.PENDING_TOPICS);
-                    }
-                  } catch { /* ignore */ }
-
-                  // Clear cart after successful publish
-                  clearCart();
-                  setPendingTopics([]);
-                  localStorage.removeItem(STORAGE_KEYS.VOTES);
-                  localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
-
-                  setPublishDone(true);
-                  setPublishStatus("");
-                } catch (e: unknown) {
-                  setPublishError(e instanceof Error ? e.message : "Transaction failed");
-                } finally {
-                  setPublishing(false);
-                }
-              }}
-              disabled={publishing}
-              style={publishBtn(publishing)}
-            >
+            <button onClick={handlePublish} disabled={publishing} style={publishBtn(publishing)}>
               {publishing ? publishStatus || "Publishing..." : "Validate & Publish On-Chain"}
             </button>
           )}

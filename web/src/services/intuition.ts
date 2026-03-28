@@ -229,7 +229,7 @@ async function getIpfsAtomId(
  * If not, create it via the proxy's createAtoms function.
  *
  * If `nickname` is provided, the atom is created as a schema.org/Thing
- * pinned to IPFS with the nickname as name + description.
+ * pinned to IPFS with name = wallet address (canonical) and description = nickname.
  * Otherwise, falls back to a plain TextObject with the address.
  *
  * Returns the user's atom ID.
@@ -245,8 +245,9 @@ export async function ensureUserAtom(
   nickname?: string
 ): Promise<string> {
   // If nickname provided, try to create a Thing atom with IPFS
+  // name = wallet address in checksum format (canonical identifier), description = nickname
   if (nickname?.trim()) {
-    const ipfsUri = await pinThing(nickname.trim(), nickname.trim());
+    const ipfsUri = await pinThing(address, nickname.trim());
     const thingAtomId = await getIpfsAtomId(multiVault, ipfsUri, ethersLib);
     const thingExists = await multiVault.isTermCreated(thingAtomId);
 
