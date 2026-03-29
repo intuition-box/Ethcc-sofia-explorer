@@ -3,7 +3,7 @@
   flex-direction: column;
   align-items: center;
   flex: 1;
-  padding: 24px 24px 0;
+  padding: 24px 24px 120px; /* Add bottom padding for button space */
   text-align: center;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
@@ -143,9 +143,13 @@
 }
 
 .enterBtn {
-  margin: 24px 24px 40px;
+  position: fixed;
+  bottom: 24px;
+  left: 24px;
+  right: 24px;
   width: calc(100% - 48px);
   flex-shrink: 0;
+  z-index: 10;
 }
 
 @keyframes pop-in {

@@ -552,23 +552,42 @@ export default function SessionDetailPage() {
   const [attendeeCount, setAttendeeCount] = useState(0);
   const [attendeeChart, setAttendeeChart] = useState<number[]>([]);
   const [attendeeLoading, setAttendeeLoading] = useState(true);
+  const [attendees, setAttendees] = useState<Array<{ termId: string; label: string }>>([]);
 
   useEffect(() => {
     const sessionAtomId = SESSION_ATOM_IDS[session.id];
-    if (!sessionAtomId) { setAttendeeLoading(false); return; }
+    if (!sessionAtomId) {
+      console.warn(`[SessionDetail] No atomId found for session ${session.id}`);
+      setAttendeeLoading(false);
+      return;
+    }
 
+    console.log(`[SessionDetail] Fetching attendees for session ${session.id}, atomId: ${sessionAtomId}`);
     const gql = new GraphQLClient({ endpoint: GQL_URL });
     gql.request<GetSessionAttendeesQuery>(GET_SESSION_ATTENDEES, {
       predicateId: PREDICATES["attending"],
       sessionAtomId,
     }).then((data) => {
       const triples = data.triples ?? [];
+      console.log(`[SessionDetail] Found ${triples.length} attendees for session ${session.id}`);
       setAttendeeCount(triples.length);
+
+      // Extract participant data
+      const participants = triples
+        .filter(t => t.subject?.term_id && t.subject?.label)
+        .map(t => ({
+          termId: t.subject!.term_id,
+          label: t.subject!.label!,  // Already filtered for non-null
+        }));
+      setAttendees(participants);
+
       // Build cumulative chart: each triple created_at adds 1 attendee
       const chart: number[] = [];
       triples.forEach((_, i) => chart.push(i + 1));
       setAttendeeChart(chart);
-    }).catch(() => {}).finally(() => setAttendeeLoading(false));
+    }).catch((err) => {
+      console.error(`[SessionDetail] Failed to fetch attendees for session ${session.id}:`, err);
+    }).finally(() => setAttendeeLoading(false));
   }, [session.id]);
 
   const speakerLine = session.speakers.map((sp) => sp.name).join(", ");
@@ -632,30 +651,46 @@ export default function SessionDetailPage() {
           <div style={statCard}>
             <div style={statLabel}>Attending</div>
             <div style={statValueRow}>
-              <Ic.People s={16} c={C.primary} />
-              <span style={attendeeValue(attendeeLoading, attendeeCount)}>
-                {attendeeLoading ? "..." : attendeeCount}
-              </span>
+              {attendeeLoading ? (
+                <>
+                  <Ic.People s={16} c={C.textTertiary} />
+                  <span style={attendeeValue(true, 0)}>Loading...</span>
+                </>
+              ) : (
+                <>
+                  <Ic.People s={16} c={attendeeCount > 0 ? C.primary : C.textTertiary} />
+                  <span style={attendeeValue(false, attendeeCount)}>{attendeeCount}</span>
+                </>
+              )}
             </div>
           </div>
           <div style={statCard}>
             <div style={statLabel}>On-chain</div>
             <div style={onChainValue(attendeeCount)}>
-              {attendeeCount > 0
-                ? <><Ic.Check s={16} c={C.success} /> verified</>
-                : "—"
-              }
+              {attendeeLoading ? (
+                <span style={{ fontSize: 14, color: C.textTertiary }}>Loading...</span>
+              ) : attendeeCount > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Ic.Check s={16} c={C.success} />
+                  <span>verified</span>
+                </div>
+              ) : (
+                "—"
+              )}
             </div>
           </div>
         </div>
         <div style={sparkCard}>
           <div style={sparkLabel}>Interest over time</div>
-          {attendeeChart.length > 1
-            ? <Spark data={attendeeChart} color={ts.color} h={48} />
-            : <div style={sparkEmpty}>
-                No interest data yet — be the first to attend!
-              </div>
-          }
+          {attendeeLoading ? (
+            <div style={sparkEmpty}>Loading chart data...</div>
+          ) : attendeeChart.length > 1 ? (
+            <Spark data={attendeeChart} color={ts.color} h={48} />
+          ) : (
+            <div style={sparkEmpty}>
+              No interest data yet — be the first to attend!
+            </div>
+          )}
         </div>
       </div>
 
@@ -730,6 +765,55 @@ export default function SessionDetailPage() {
           <div style={noSpeakersCard}>
             <div style={noSpeakersText}>No speakers listed for this session.</div>
           </div>
+        </div>
+      )}
+
+      {/* Attendees section */}
+      {attendeeCount > 0 && (
+        <div style={speakersSection}>
+          <div style={speakersHeading}>
+            Attendees ({attendeeCount})
+          </div>
+          {attendeeLoading ? (
+            <div style={noSpeakersCard}>
+              <div style={noSpeakersText}>Loading attendees...</div>
+            </div>
+          ) : attendees.length > 0 ? (
+            <>
+              {attendees.slice(0, 10).map((attendee) => (
+                <div
+                  key={attendee.termId}
+                  style={speakerRow}
+                  onClick={() => navigate(`/vibe-profile/${encodeURIComponent(attendee.label)}`)}
+                >
+                  <div style={speakerAvatar(ts.color)}>
+                    {attendee.label.substring(0, 2).toUpperCase()}
+                  </div>
+                  <div style={fluidContent}>
+                    <div style={speakerName}>
+                      {attendee.label.startsWith('0x')
+                        ? `${attendee.label.substring(0, 6)}...${attendee.label.substring(attendee.label.length - 4)}`
+                        : attendee.label
+                      }
+                    </div>
+                    <div style={speakerOrg}>Attending</div>
+                  </div>
+                  <Ic.Right s={16} c={C.textTertiary} />
+                </div>
+              ))}
+              {attendees.length > 10 && (
+                <div style={noSpeakersCard}>
+                  <div style={noSpeakersText}>
+                    + {attendees.length - 10} more attendee{attendees.length - 10 > 1 ? 's' : ''}
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div style={noSpeakersCard}>
+              <div style={noSpeakersText}>No attendees yet — be the first!</div>
+            </div>
+          )}
         </div>
       )}
 

@@ -40,21 +40,7 @@ describe("StorageService", () => {
     });
   });
 
-  describe("Topics", () => {
-    it("should return empty set when no topics exist", () => {
-      const topics = StorageService.loadTopics();
-      expect(topics.size).toBe(0);
-    });
-
-    it("should save and load topics", () => {
-      const topics = new Set(["DeFi", "Privacy & ZK", "AI & Crypto"]);
-      StorageService.saveTopics(topics);
-
-      const loaded = StorageService.loadTopics();
-      expect(loaded.size).toBe(3);
-      expect(loaded.has("DeFi")).toBe(true);
-    });
-  });
+  // Topics tests removed - interests are now derived from on-chain data via syncProfileFromChain
 
   describe("Corrupted data", () => {
     it("should return empty set for corrupted JSON", () => {

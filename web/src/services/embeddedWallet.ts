@@ -1,5 +1,6 @@
 import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { SofiaFeeProxyAbi } from "../config/SofiaFeeProxyABI";
+import { StorageService } from "./StorageService";
 import type { WalletConnection } from "./intuition";
 
 const STORAGE_KEY = STORAGE_KEYS.EMBEDDED_WALLET;
@@ -69,18 +70,13 @@ async function decryptPrivateKey(stored: StoredWallet, password: string): Promis
 
 /** Check if an embedded wallet exists in localStorage */
 export function hasEmbeddedWallet(): boolean {
-  return localStorage.getItem(STORAGE_KEY) !== null;
+  return StorageService.getString(STORAGE_KEY) !== null;
 }
 
 /** Get the stored wallet address (without decrypting the key) */
 export function getEmbeddedAddress(): string | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return null;
-  try {
-    return (JSON.parse(raw) as StoredWallet).address;
-  } catch {
-    return null;
-  }
+  const wallet = StorageService.loadObject<StoredWallet>(STORAGE_KEY);
+  return wallet?.address ?? null;
 }
 
 /** Create a new embedded wallet, encrypt it with a password, and store it */
@@ -95,18 +91,17 @@ export async function createEmbeddedWallet(password: string): Promise<{ address:
     salt,
     iv,
   };
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
-  localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, wallet.address);
+  StorageService.saveObject(STORAGE_KEY, stored);
+  StorageService.setString(STORAGE_KEYS.WALLET_ADDRESS, wallet.address);
 
   return { address: wallet.address, privateKey: wallet.privateKey };
 }
 
 /** Unlock an existing embedded wallet and return a WalletConnection */
 export async function connectEmbeddedWallet(password: string): Promise<WalletConnection> {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) throw new Error("No embedded wallet found");
+  const stored = StorageService.loadObject<StoredWallet>(STORAGE_KEY);
+  if (!stored) throw new Error("No embedded wallet found");
 
-  const stored: StoredWallet = JSON.parse(raw);
   const privateKey = await decryptPrivateKey(stored, password);
 
   const { ethers } = await import("ethers");
@@ -117,7 +112,7 @@ export async function connectEmbeddedWallet(password: string): Promise<WalletCon
   const signer = new ethers.Wallet(privateKey, provider);
   const address = signer.address;
 
-  localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
+  StorageService.setString(STORAGE_KEYS.WALLET_ADDRESS, address);
 
   const proxy = new ethers.Contract(CHAIN_CONFIG.SOFIA_PROXY, SofiaFeeProxyAbi, signer);
   const multiVault = new ethers.Contract(CHAIN_CONFIG.MULTIVAULT, MULTIVAULT_ABI, signer);
@@ -127,18 +122,17 @@ export async function connectEmbeddedWallet(password: string): Promise<WalletCon
 
 /** Mark the private key as backed up by the user */
 export function markBackupDone(): void {
-  localStorage.setItem(STORAGE_KEYS.BACKUP_DONE, "1");
+  StorageService.setString(STORAGE_KEYS.BACKUP_DONE, "1");
 }
 
 /** Check if the user has acknowledged the backup */
 export function isBackupDone(): boolean {
-  return localStorage.getItem(STORAGE_KEYS.BACKUP_DONE) === "1";
+  return StorageService.getString(STORAGE_KEYS.BACKUP_DONE) === "1";
 }
 
 // needsUnlock removed — unused
 
 /** Delete the embedded wallet from storage */
 export function deleteEmbeddedWallet(): void {
-  localStorage.removeItem(STORAGE_KEY);
-  localStorage.removeItem(STORAGE_KEYS.BACKUP_DONE);
+  StorageService.removeMultiple([STORAGE_KEY, STORAGE_KEYS.BACKUP_DONE]);
 }

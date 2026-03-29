@@ -10,25 +10,8 @@ import { allTopics, categories } from "../data/topics";
 import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { fetchTrendingTopics, fetchAllTopicEvents, type TopicVaultData } from "../services/trendingService";
 import { fetchUserVotedTopics, resolveTopicAtomIds } from "../services/voteService";
+import { StorageService } from "../services/StorageService";
 import type { Web3Category } from "../types";
-
-function loadVotes(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.VOTES);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch { return new Set(); }
-}
-
-function saveVotes(votes: Set<string>) {
-  localStorage.setItem(STORAGE_KEYS.VOTES, JSON.stringify([...votes]));
-}
-
-function loadPublishedVotes(): Set<string> {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch { return new Set(); }
-}
 
 export type Tab = "trending" | "myvotes" | "discover";
 export type VoteState = "support" | "pending" | "supported" | "redeemed";
@@ -39,8 +22,8 @@ export function useVoteLogic() {
 
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("discover");
-  const [userVotes, setUserVotes] = useState<Set<string>>(() => loadVotes());
-  const [publishedVotes, setPublishedVotes] = useState<Set<string>>(() => loadPublishedVotes());
+  const [userVotes, setUserVotes] = useState<Set<string>>(() => StorageService.loadVotes());
+  const [publishedVotes, setPublishedVotes] = useState<Set<string>>(() => StorageService.loadPublishedVotes());
   const [discoverIdx, setDiscoverIdx] = useState(0);
 
   // Sync userVotes with cart
@@ -48,30 +31,33 @@ export function useVoteLogic() {
     setUserVotes((prev) => {
       const cleaned = new Set<string>();
       for (const id of prev) { if (cart.has(id)) cleaned.add(id); }
-      if (cleaned.size !== prev.size) { saveVotes(cleaned); return cleaned; }
+      if (cleaned.size !== prev.size) { StorageService.saveVotes(cleaned); return cleaned; }
       return prev;
     });
   }, [cart]);
 
   // Reload published votes on focus
   useEffect(() => {
-    const handleFocus = () => setPublishedVotes(loadPublishedVotes());
+    const handleFocus = () => setPublishedVotes(StorageService.loadPublishedVotes());
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
   }, []);
 
   // Hydrate from chain
   useEffect(() => {
-    const addr = wallet?.address ?? localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS);
+    const addr = wallet?.address ?? StorageService.getString(STORAGE_KEYS.WALLET_ADDRESS);
     if (!addr) return;
     fetchUserVotedTopics(addr).then((onChain) => {
       if (onChain.size === 0) return;
       setPublishedVotes((prev) => {
         const merged = new Set([...prev, ...onChain]);
-        localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify([...merged]));
+        StorageService.savePublishedVotes(merged);
         return merged;
       });
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[useVoteLogic] Failed to fetch user voted topics from chain:', err);
+      // Continue silently - user will see published votes from localStorage cache
+    });
   }, [wallet?.address]);
 
   // Trending data
@@ -84,7 +70,10 @@ export function useVoteLogic() {
     setLoading(true);
     Promise.all([fetchTrendingTopics(), fetchAllTopicEvents()])
       .then(([trending, charts]) => { setRealTrending(trending); setRealChartData(charts); })
-      .catch(() => {})
+      .catch((err) => {
+        console.error('[useVoteLogic] Failed to load trending topics data:', err);
+        // Continue silently - UI will show loading state or empty data
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -95,7 +84,7 @@ export function useVoteLogic() {
   }, [realTrending]);
 
   // Persist votes
-  useEffect(() => { saveVotes(userVotes); }, [userVotes]);
+  useEffect(() => { StorageService.saveVotes(userVotes); }, [userVotes]);
 
   const categoryMap = useMemo(() => {
     const m = new Map<string, Web3Category>();
@@ -132,7 +121,7 @@ export function useVoteLogic() {
     setUserVotes((prev) => { const next = new Set(prev); next.delete(topicId); return next; });
     setPublishedVotes((prev) => {
       const next = new Set(prev); next.delete(topicId);
-      localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify([...next]));
+      StorageService.savePublishedVotes(next);
       return next;
     });
     removeFromCart(topicId);

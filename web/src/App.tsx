@@ -4,13 +4,14 @@ import { PhoneFrame } from "./components/ui/PhoneFrame";
 import { Nav5 } from "./components/ui/Nav5";
 import { SplashBg } from "./components/ui/SplashBg";
 import { useCart } from "./hooks/useCart";
-import { StorageService } from "./services/StorageService";
 import { sessions } from "./data";
 import { startSessionNotifScheduler, createTestSession, type SessionNotifEvent } from "./services/sessionNotifService";
 import { STORAGE_KEYS } from "./config/constants";
 import { requestNotificationPermission, showNativeNotification, notifyReplayAvailable } from "./services/notificationService";
 import { startReplayPolling } from "./services/replayService";
 import { subscribeToPush } from "./services/pushService";
+import { followNotificationService, type NewFollowerEvent } from "./services/followNotificationService";
+import { StorageService } from "./services/StorageService";
 import { C, FONT, glassSurface } from "./config/theme";
 import "./styles/globals.css";
 
@@ -84,8 +85,9 @@ function AppContent() {
   const showNav = TAB_PATHS.includes(location.pathname) || location.pathname.startsWith("/vibe/");
 
   // Check if onboarding is completed
-  const topics = StorageService.loadTopics();
-  const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET || topics.size > 0 || localStorage.getItem("ethcc-onboarded") === "1";
+  const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET ||
+    localStorage.getItem("ethcc-onboarded") === "1" ||
+    localStorage.getItem("ethcc-published-sessions"); // Has published sessions = onboarded
 
   if (!hasOnboarded && location.pathname !== "/") {
     // We let the router handle this via the index route
@@ -94,11 +96,13 @@ function AppContent() {
   const navigate = useNavigate();
 
   // ── Notification toast ──────────────────────────────────
-  const [toast, setToast] = useState<{ title: string; body: string; sessionId?: string } | null>(null);
+  const [toast, setToast] = useState<{ title: string; body: string; sessionId?: string; url?: string } | null>(null);
 
   const dismissToast = useCallback(() => {
     if (toast?.sessionId) {
       navigate(`/rate/${toast.sessionId}`);
+    } else if (toast?.url) {
+      navigate(toast.url);
     }
     setToast(null);
   }, [toast, navigate]);
@@ -168,6 +172,43 @@ function AppContent() {
         // Native notification
         notifyReplayAvailable(title, replay.url);
       }
+    });
+
+    return cleanup;
+  }, []);
+
+  // ── Follow notification polling ────────────────────────
+  useEffect(() => {
+    // Get user atomId from profile
+    const profile = StorageService.loadObject<{ atomId?: string }>(STORAGE_KEYS.PROFILE);
+    const userAtomId = profile?.atomId;
+
+    if (!userAtomId) {
+      console.log("[App] No user atomId found, skipping follow notifications");
+      return;
+    }
+
+    const cleanup = followNotificationService.start(userAtomId, (event: NewFollowerEvent) => {
+      // In-app toast
+      setToast({
+        title: event.count === 1
+          ? `${event.followers[0].label} started following you!`
+          : `${event.count} new followers!`,
+        body: "Tap to view your followers",
+        url: "/notifications",
+      });
+
+      // Native notification
+      showNativeNotification(
+        event.count === 1 ? "New Follower!" : `${event.count} New Followers!`,
+        {
+          body: event.count === 1
+            ? `${event.followers[0].label} started following you`
+            : `You have ${event.count} new followers`,
+          tag: "new-followers",
+          url: "/notifications",
+        }
+      );
     });
 
     return cleanup;

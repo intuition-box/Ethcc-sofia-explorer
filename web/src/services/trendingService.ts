@@ -1,5 +1,6 @@
 import { GQL_URL } from "../config/constants";
 import { GraphQLClient } from "@ethcc/graphql";
+import { GET_TRENDING_TOPICS, GET_TOPIC_VOTERS } from "../../../packages/graphql/src/queries";
 import topicGraph from "../../../bdd/web3_topics_graph.json";
 
 const gqlClient = new GraphQLClient({ endpoint: GQL_URL });
@@ -42,35 +43,18 @@ export async function fetchTrendingTopics(): Promise<TopicVaultData[]> {
   const atomIds = Object.values(TOPIC_ATOM_IDS);
   if (atomIds.length === 0) return [];
 
-  // Query triples where predicate = "supports" and object = topic atom
-  // Get vault data for each triple
-  const query = `{
-    triples(
-      where: {
-        predicate: { term_id: { _eq: "${SUPPORTS_PREDICATE}" } }
-        object: { term_id: { _in: [${atomIds.map((id) => `"${id}"`).join(",")}] } }
-      }
-    ) {
-      object {
-        term_id
-        label
-      }
-      term {
-        vaults {
-          total_assets
-          position_count
-        }
-      }
-      counter_term {
-        vaults {
-          total_assets
-          position_count
-        }
-      }
-    }
-  }`;
+  // Use centralized GraphQL query with type-safe variables
+  const gqlResult = await gqlClient.request<{
+    triples: Array<{
+      object: { term_id: string; label: string };
+      term?: { vaults?: Array<{ total_assets: string; position_count: number }> };
+      counter_term?: { vaults?: Array<{ total_assets: string; position_count: number }> };
+    }>;
+  }>(GET_TRENDING_TOPICS, {
+    predicateId: SUPPORTS_PREDICATE,
+    atomIds: atomIds,
+  });
 
-  const gqlResult = await gqlClient.request<any>(query);
   const triples = gqlResult.triples ?? [];
 
   // Map atom IDs back to topic IDs
@@ -127,27 +111,20 @@ export async function fetchTopicVoters(
   const atomId = TOPIC_ATOM_IDS[topicId];
   if (!atomId) return [];
 
-  const query = `{
-    triples(
-      where: {
-        predicate: { term_id: { _eq: "${SUPPORTS_PREDICATE}" } }
-        object: { term_id: { _eq: "${atomId}" } }
-      }
-    ) {
-      subject {
-        label
-      }
-      positions(order_by: { shares: desc }) {
-        account {
-          id
-          label
-        }
-        shares
-      }
-    }
-  }`;
+  // Use centralized GraphQL query with type-safe variables
+  const gqlResult = await gqlClient.request<{
+    triples: Array<{
+      subject: { label: string };
+      positions?: Array<{
+        account: { id?: string; label?: string };
+        shares: string;
+      }>;
+    }>;
+  }>(GET_TOPIC_VOTERS, {
+    predicateId: SUPPORTS_PREDICATE,
+    atomId: atomId,
+  });
 
-  const gqlResult = await gqlClient.request<any>(query);
   const triples = gqlResult.triples ?? [];
 
   const positions: TopicPosition[] = [];

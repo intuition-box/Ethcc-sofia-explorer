@@ -3,6 +3,7 @@
  * Fetches replays.json periodically and notifies when new replay links appear.
  */
 import { STORAGE_KEYS } from "../config/constants";
+import { StorageService } from "./StorageService";
 
 const REPLAY_URL = import.meta.env.BASE_URL + "replays.json";
 const SEEN_KEY = STORAGE_KEYS.SEEN_REPLAYS;
@@ -15,19 +16,14 @@ interface ReplaysData {
 
 /** Get the set of replay session IDs already seen by this user */
 function getSeenReplays(): Set<string> {
-  try {
-    const raw = localStorage.getItem(SEEN_KEY);
-    return raw ? new Set(JSON.parse(raw)) : new Set();
-  } catch {
-    return new Set();
-  }
+  return StorageService.loadSet(SEEN_KEY);
 }
 
 /** Mark a replay as seen */
 function markSeen(sessionId: string): void {
   const seen = getSeenReplays();
   seen.add(sessionId);
-  localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+  StorageService.saveSet(SEEN_KEY, seen);
 }
 
 /** Fetch replays.json (cache-bust to get latest) */
@@ -43,11 +39,7 @@ async function fetchReplays(): Promise<ReplaysData | null> {
 
 /** Check if the user wants replays for specific sessions */
 function getWantedReplays(): string[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.WANT_REPLAY) ?? "[]");
-  } catch {
-    return [];
-  }
+  return StorageService.loadStringArray(STORAGE_KEYS.WANT_REPLAY);
 }
 
 export interface NewReplay {

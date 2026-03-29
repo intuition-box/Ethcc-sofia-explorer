@@ -1,0 +1,13 @@
+# Query for positions on specific atoms (for interest counts)
+query GetPositionsByAtoms($atomIds: [String!]!) {
+  positions(
+    where: {
+      term_id: { _in: $atomIds }
+      shares: { _gt: "0" }
+    }
+  ) {
+    term_id
+    account_id
+    shares
+  }
+}

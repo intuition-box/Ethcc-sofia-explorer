@@ -10,7 +10,6 @@ import {
   createProfileTriples,
 } from "../services/intuition";
 import { formatTxError } from "../utils/txErrors";
-import { StorageService } from "../services/StorageService";
 import { STORAGE_KEYS } from "../config/constants";
 import type { WalletConnection } from "../services/intuition";
 
@@ -59,8 +58,7 @@ export function useOnboardingPublish() {
       if (sessionTriples.length > 0) {
         setTxStatus(`Publishing ${sessionTriples.length} session triples...`);
         const tripleResult = await createProfileTriples(
-          effectiveWallet.multiVault, effectiveWallet.proxy,
-          effectiveWallet.address, sessionTriples, undefined, setTxStatus
+          effectiveWallet, sessionTriples, undefined, setTxStatus
         );
         lastHash = tripleResult.hash;
         const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
@@ -76,8 +74,8 @@ export function useOnboardingPublish() {
         return;
       }
 
-      // Persist topics — sessions are already in PUBLISHED_SESSIONS, NOT in cart
-      StorageService.saveTopics(selectedTracks);
+      // Onboarding complete - no need to persist interests separately
+      // They will be synced from on-chain positions via profileSync
 
       setTxHash(lastHash);
       setTxState("done");

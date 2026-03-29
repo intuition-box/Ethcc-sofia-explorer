@@ -87,75 +87,178 @@ function keyStr(k: NotifKey): string {
   return `${k.type}:${k.sessionId}`;
 }
 
-// Set of already-fired notification keys
-const fired = new Set<string>();
-
 export interface SessionNotifEvent {
   session: Session;
   type: NotifType;
   message: string;
 }
 
-// ─── Compute pending notifications ──────────────────────────
-
-function computePendingNotifs(
-  sessions: Session[],
-  nowMs: number
-): { key: NotifKey; session: Session; triggerMs: number }[] {
-  const pending: { key: NotifKey; session: Session; triggerMs: number }[] = [];
-  const WINDOW = 90_000; // 90s tolerance window
-
-  for (const session of sessions) {
-    // H-1: 1 hour before startTime
-    const startMs = parseCannesTime(session.date, session.startTime);
-    if (startMs !== null) {
-      const h1Ms = startMs - 60 * 60 * 1000;
-      const h1Key: NotifKey = { sessionId: session.id, type: "h1" };
-      if (!fired.has(keyStr(h1Key)) && nowMs >= h1Ms && nowMs < h1Ms + WINDOW) {
-        pending.push({ key: h1Key, session, triggerMs: h1Ms });
-      }
-    }
-
-    if (session.endTime) {
-      // End notification at endTime
-      const endMs = parseCannesTime(session.date, session.endTime);
-      if (endMs !== null) {
-        const endKey: NotifKey = { sessionId: session.id, type: "end" };
-        if (!fired.has(keyStr(endKey)) && nowMs >= endMs && nowMs < endMs + WINDOW) {
-          pending.push({ key: endKey, session, triggerMs: endMs });
-        }
-      }
-    } else {
-      // Side event: end-of-day notification at 19:00
-      const eodMs = endOfDayCannes(session.date);
-      if (eodMs !== null) {
-        const eodKey: NotifKey = { sessionId: session.id, type: "eod" };
-        if (!fired.has(keyStr(eodKey)) && nowMs >= eodMs && nowMs < eodMs + WINDOW) {
-          pending.push({ key: eodKey, session, triggerMs: eodMs });
-        }
-      }
-    }
-  }
-
-  return pending;
-}
-
-function buildMessage(session: Session, type: NotifType): string {
-  switch (type) {
-    case "h1":
-      return `Starts in 1h: "${session.title}" at ${session.startTime} · ${session.stage}`;
-    case "end":
-      return `How was "${session.title}"? Tap to rate`;
-    case "eod":
-      return `How was "${session.title}"? Rate this side event`;
-  }
-}
-
-// ─── Public API ──────────────────────────────────────────────
-
-let pollInterval: ReturnType<typeof setInterval> | null = null;
+// ─── Service Class ───────────────────────────────────────────
 
 /**
+ * Session notification service with instance-based state.
+ * Each instance maintains its own set of fired notifications and polling interval.
+ *
+ * Usage:
+ * ```typescript
+ * const notifService = new SessionNotificationService();
+ * const cleanup = notifService.start(sessions, (event) => {
+ *   console.log('Notification:', event.message);
+ * });
+ * // Later:
+ * cleanup();
+ * ```
+ */
+export class SessionNotificationService {
+  /**
+   * Set of already-fired notification keys for this service instance.
+   * Prevents duplicate notifications within the same scheduler lifecycle.
+   */
+  private fired = new Set<string>();
+
+  /**
+   * Active polling interval ID (null when not running).
+   */
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+
+  /**
+   * Compute pending notifications for the current time.
+   * @private
+   */
+  private computePendingNotifs(
+    sessions: Session[],
+    nowMs: number
+  ): { key: NotifKey; session: Session; triggerMs: number }[] {
+    const pending: { key: NotifKey; session: Session; triggerMs: number }[] = [];
+    const WINDOW = 90_000; // 90s tolerance window
+
+    for (const session of sessions) {
+      // H-1: 1 hour before startTime
+      const startMs = parseCannesTime(session.date, session.startTime);
+      if (startMs !== null) {
+        const h1Ms = startMs - 60 * 60 * 1000;
+        const h1Key: NotifKey = { sessionId: session.id, type: "h1" };
+        if (!this.fired.has(keyStr(h1Key)) && nowMs >= h1Ms && nowMs < h1Ms + WINDOW) {
+          pending.push({ key: h1Key, session, triggerMs: h1Ms });
+        }
+      }
+
+      if (session.endTime) {
+        // End notification at endTime
+        const endMs = parseCannesTime(session.date, session.endTime);
+        if (endMs !== null) {
+          const endKey: NotifKey = { sessionId: session.id, type: "end" };
+          if (!this.fired.has(keyStr(endKey)) && nowMs >= endMs && nowMs < endMs + WINDOW) {
+            pending.push({ key: endKey, session, triggerMs: endMs });
+          }
+        }
+      } else {
+        // Side event: end-of-day notification at 19:00
+        const eodMs = endOfDayCannes(session.date);
+        if (eodMs !== null) {
+          const eodKey: NotifKey = { sessionId: session.id, type: "eod" };
+          if (!this.fired.has(keyStr(eodKey)) && nowMs >= eodMs && nowMs < eodMs + WINDOW) {
+            pending.push({ key: eodKey, session, triggerMs: eodMs });
+          }
+        }
+      }
+    }
+
+    return pending;
+  }
+
+  /**
+   * Build notification message for a session and notification type.
+   * @private
+   */
+  private buildMessage(session: Session, type: NotifType): string {
+    switch (type) {
+      case "h1":
+        return `Starts in 1h: "${session.title}" at ${session.startTime} · ${session.stage}`;
+      case "end":
+        return `How was "${session.title}"? Tap to rate`;
+      case "eod":
+        return `How was "${session.title}"? Rate this side event`;
+    }
+  }
+
+  /**
+   * Start the notification scheduler. Polls every 60s.
+   * Only notifies for sessions in the provided list (user's cart/published).
+   *
+   * @param sessions - Sessions to monitor (filter to user's cart before calling)
+   * @param onNotify - Callback when a notification should fire
+   * @returns cleanup function that stops the scheduler
+   */
+  start(
+    sessions: Session[],
+    onNotify: (event: SessionNotifEvent) => void
+  ): () => void {
+    // Stop any existing scheduler first
+    this.stop();
+
+    const check = () => {
+      const nowMs = Date.now();
+      const pending = this.computePendingNotifs(sessions, nowMs);
+      for (const p of pending) {
+        this.fired.add(keyStr(p.key));
+        onNotify({
+          session: p.session,
+          type: p.key.type,
+          message: this.buildMessage(p.session, p.key.type),
+        });
+      }
+    };
+
+    // Check immediately
+    check();
+
+    // Then poll every 60s
+    this.pollInterval = setInterval(check, 60_000);
+
+    // Return cleanup function
+    return () => this.stop();
+  }
+
+  /**
+   * Stop the notification scheduler and clear polling interval.
+   */
+  stop(): void {
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+  }
+
+  /**
+   * Clear the set of fired notifications.
+   * Useful for testing or resetting state.
+   */
+  clearFired(): void {
+    this.fired.clear();
+  }
+
+  /**
+   * Get the list of fired notification keys (for debugging).
+   */
+  getScheduledStatus(): string[] {
+    return [...this.fired];
+  }
+}
+
+// ─── Singleton Instance ──────────────────────────────────────
+
+/**
+ * Default singleton instance for backward compatibility.
+ * Prefer creating your own instance if you need isolation.
+ */
+export const sessionNotifService = new SessionNotificationService();
+
+// ─── Legacy API (Deprecated) ─────────────────────────────────
+
+/**
+ * @deprecated Use `new SessionNotificationService().start()` instead.
+ *
  * Start the notification scheduler. Polls every 60s.
  * Only notifies for sessions in the provided list (user's cart/published).
  *
@@ -167,33 +270,14 @@ export function startSessionNotifScheduler(
   sessions: Session[],
   onNotify: (event: SessionNotifEvent) => void
 ): () => void {
-  const check = () => {
-    const nowMs = Date.now();
-    const pending = computePendingNotifs(sessions, nowMs);
-    for (const p of pending) {
-      fired.add(keyStr(p.key));
-      onNotify({
-        session: p.session,
-        type: p.key.type,
-        message: buildMessage(p.session, p.key.type),
-      });
-    }
-  };
-
-  check();
-  pollInterval = setInterval(check, 60_000); // every 60s
-
-  return () => {
-    if (pollInterval) {
-      clearInterval(pollInterval);
-      pollInterval = null;
-    }
-  };
+  return sessionNotifService.start(sessions, onNotify);
 }
 
 /**
+ * @deprecated Use `sessionNotifService.getScheduledStatus()` instead.
+ *
  * Get the status of fired notifications (for debugging).
  */
 export function getScheduledStatus(): string[] {
-  return [...fired];
+  return sessionNotifService.getScheduledStatus();
 }

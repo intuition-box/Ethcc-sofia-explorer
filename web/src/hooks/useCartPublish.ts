@@ -11,7 +11,6 @@ import { useState, useCallback } from "react";
 import { CHAIN_CONFIG, STORAGE_KEYS } from "../config/constants";
 import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTriples, TRACK_ATOM_IDS } from "../services/intuition";
 import { resolveTopicAtomIds } from "../services/voteService";
-import { StorageService } from "../services/StorageService";
 import { formatTxError } from "../utils/txErrors";
 import type { WalletConnection } from "../services/intuition";
 import type { Session } from "../types";
@@ -35,7 +34,6 @@ export function useCartPublish() {
     cartRatings: RatingEntry[],
     ratingsGraph: { sessionRatingTriples: Record<string, Record<string, { subjectId: string; predicateId: string; objectId: string }>> },
     clearCart: () => void,
-    setPendingTopics: (v: string[]) => void,
   ) => {
     setPublishing(true);
     setPublishError("");
@@ -65,7 +63,7 @@ export function useCartPublish() {
         const userAtomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers);
         const triples = buildProfileTriples(userAtomId, [], cartSessions.map((s) => s.id));
         if (triples.length > 0) {
-          await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
+          await createProfileTriples(wallet, triples);
         }
         const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
         for (const s of cartSessions) { if (!published.includes(s.id)) published.push(s.id); }
@@ -101,20 +99,8 @@ export function useCartPublish() {
         }
       }
 
-      // Move pending topics to published
-      try {
-        const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
-        if (pending.length > 0) {
-          const existingTopics = StorageService.loadTopics();
-          for (const t of pending) existingTopics.add(t);
-          StorageService.saveTopics(existingTopics);
-          localStorage.removeItem(STORAGE_KEYS.PENDING_TOPICS);
-        }
-      } catch { /* ignore */ }
-
-      // Clear cart
+      // Clear cart and temporary storage
       clearCart();
-      setPendingTopics([]);
       localStorage.removeItem(STORAGE_KEYS.VOTES);
       localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
 

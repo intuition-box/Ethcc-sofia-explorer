@@ -1,0 +1,84 @@
+# Query for trending topics with vault data
+query GetTrendingTopics($predicateId: String!, $atomIds: [String!]!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $atomIds } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+    term {
+      vaults {
+        total_assets
+        position_count
+      }
+    }
+    counter_term {
+      vaults {
+        total_assets
+        position_count
+      }
+    }
+  }
+}
+
+# Query for voters on a specific topic
+query GetTopicVoters($predicateId: String!, $atomId: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _eq: $atomId } }
+    }
+  ) {
+    subject {
+      label
+    }
+    positions(order_by: { shares: desc }) {
+      account {
+        id
+        label
+      }
+      shares
+    }
+  }
+}
+
+# Note: Vault events queries removed - events field not available in current schema
+# trendingService.ts uses inline queries for events that may need custom handling
+
+# Query to get topics a user voted on
+query GetUserTopics($predicateId: String!, $userAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      subject: { label: { _ilike: $userAddress } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+  }
+}
+
+# Query to get users who voted on specific topics
+query GetUsersVotingOnTopics($predicateId: String!, $topicIds: [String!]!, $excludeAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $topicIds } }
+      subject: { label: { _nilike: $excludeAddress } }
+    }
+  ) {
+    subject {
+      label
+    }
+    object {
+      term_id
+      label
+    }
+  }
+}

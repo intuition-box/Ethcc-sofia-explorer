@@ -18403,6 +18403,13 @@ export type SearchAtomsQueryVariables = Exact<{
 
 export type SearchAtomsQuery = { atoms: Array<{ term_id: string, label?: string | null, image?: string | null, type: any }> };
 
+export type GetPositionsByAtomsQueryVariables = Exact<{
+  atomIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type GetPositionsByAtomsQuery = { positions: Array<{ term_id: string, account_id: string, shares: string }> };
+
 export type GetAccountPositionsQueryVariables = Exact<{
   address: Scalars['String']['input'];
   limit: Scalars['Int']['input'];
@@ -18442,6 +18449,39 @@ export type GetAllSessionAttendeesQueryVariables = Exact<{
 
 export type GetAllSessionAttendeesQuery = { triples: Array<{ term_id: string, created_at: string, object?: { term_id: string } | null, subject?: { term_id: string, label?: string | null } | null, term?: { vaults: Array<{ position_count: number, total_shares: string }> } | null }> };
 
+export type GetTrendingTopicsQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  atomIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type GetTrendingTopicsQuery = { triples: Array<{ object?: { term_id: string, label?: string | null } | null, term?: { vaults: Array<{ total_assets: string, position_count: number }> } | null, counter_term?: { vaults: Array<{ total_assets: string, position_count: number }> } | null }> };
+
+export type GetTopicVotersQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  atomId: Scalars['String']['input'];
+}>;
+
+
+export type GetTopicVotersQuery = { triples: Array<{ subject?: { label?: string | null } | null, positions: Array<{ shares: string, account?: { id: string, label: string } | null }> }> };
+
+export type GetUserTopicsQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  userAddress: Scalars['String']['input'];
+}>;
+
+
+export type GetUserTopicsQuery = { triples: Array<{ object?: { term_id: string, label?: string | null } | null }> };
+
+export type GetUsersVotingOnTopicsQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  topicIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+  excludeAddress: Scalars['String']['input'];
+}>;
+
+
+export type GetUsersVotingOnTopicsQuery = { triples: Array<{ subject?: { label?: string | null } | null, object?: { term_id: string, label?: string | null } | null }> };
+
 export type GetTriplesByPredicateQueryVariables = Exact<{
   predicateId: Scalars['String']['input'];
   objectIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
@@ -18467,3 +18507,26 @@ export type GetTrendingTriplesQueryVariables = Exact<{
 
 
 export type GetTrendingTriplesQuery = { triples: Array<{ term_id: string, object?: { term_id: string, label?: string | null } | null, term?: { vaults: Array<{ total_shares: string, current_share_price: string, position_count: number }> } | null, positions: Array<{ account_id: string, shares: string }> }> };
+
+export type GetVibeMatchPositionsQueryVariables = Exact<{
+  atomIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type GetVibeMatchPositionsQuery = { positions: Array<{ account_id: string, term_id: string, shares: string }> };
+
+export type GetVibeMatchSessionsQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  sessionAtomIds: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type GetVibeMatchSessionsQuery = { triples: Array<{ subject?: { term_id: string, label?: string | null } | null, object?: { term_id: string } | null }> };
+
+export type GetUserAttendedSessionsQueryVariables = Exact<{
+  predicateId: Scalars['String']['input'];
+  userAddress: Scalars['String']['input'];
+}>;
+
+
+export type GetUserAttendedSessionsQuery = { triples: Array<{ created_at: string, object?: { term_id: string, label?: string | null } | null }> };

@@ -6,7 +6,8 @@ import { sessions, dates } from "../data";
 import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
 import { useVibeMatches } from "../hooks/useVibeMatches";
-import { StorageService } from "../services/StorageService";
+import { SkeletonCircle, Skeleton } from "../components/ui/Skeleton";
+import { UserLabel } from "../components/ui/UserLabel";
 import {
   hasEmbeddedWallet,
   getEmbeddedAddress,
@@ -17,6 +18,7 @@ import {
 import { STORAGE_KEYS } from "../config/constants";
 import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
 import { usePullToRefresh } from "../hooks/usePullToRefresh";
+import { followNotificationService } from "../services/followNotificationService";
 import {
   scrollContent,
   fluidContent,
@@ -177,6 +179,31 @@ const trophyBtn: CSSProperties = {
   border: "none",
   cursor: "pointer",
   padding: 4,
+};
+
+const notificationBtn: CSSProperties = {
+  position: "relative",
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  padding: 4,
+};
+
+const notificationBadge: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  right: 0,
+  background: C.error,
+  color: C.white,
+  fontSize: 10,
+  fontWeight: 700,
+  borderRadius: 10,
+  minWidth: 18,
+  height: 18,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "0 5px",
 };
 
 const circleIconSend: CSSProperties = {
@@ -414,16 +441,6 @@ const vibeScore: CSSProperties = {
   color: C.success,
 };
 
-const loadingWrap: CSSProperties = {
-  padding: "16px 20px",
-  textAlign: "center",
-};
-
-const loadingText: CSSProperties = {
-  fontSize: 13,
-  color: C.textSecondary,
-};
-
 const sessionsListWrap: CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -501,14 +518,50 @@ export default function HomePage() {
   }, []);
 
   // Real vibe matches — use ONLY on-chain published data, not cart
-  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
+  const [profileSynced, setProfileSynced] = useState(false);
   const publishedSessionIds = useMemo<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
     catch { return []; }
   }, []);
+
+  // Sync interests from on-chain when wallet connects
+  useEffect(() => {
+    if (walletAddress) {
+      setProfileSynced(false);
+      import("../services/profileSync").then(({ syncProfileFromChain }) => {
+        syncProfileFromChain(walletAddress).then(result => {
+          setSavedTopics(new Set(result.interests));
+          setProfileSynced(true);
+        }).catch(err => {
+          console.error("Failed to sync profile from chain:", err);
+          setProfileSynced(true); // Still mark as synced to avoid blocking
+        });
+      });
+    } else {
+      setProfileSynced(false);
+    }
+  }, [walletAddress]);
+
+  // Only fetch vibe matches AFTER profile is synced
+  const emptyTopics = useMemo(() => new Set<string>(), []);
+  const emptySessions = useMemo(() => [], []);
+
   const { matches: vibeMatches, loading: vibesLoading } = useVibeMatches(
-    savedTopics, publishedSessionIds, walletAddress,
+    profileSynced ? savedTopics : emptyTopics,
+    profileSynced ? publishedSessionIds : emptySessions,
+    walletAddress,
+    undefined, // votedTopicIds
+    0 // No need for refreshKey, topics change will trigger update
   );
+
+  // Notification count for followers
+  const [notificationCount, setNotificationCount] = useState(0);
+  useEffect(() => {
+    if (walletAddress) {
+      followNotificationService.getUnseenFollowerCount(walletAddress).then(setNotificationCount).catch(() => {});
+    }
+  }, [walletAddress]);
 
   // Embedded wallet state
   const isEmbedded = hasEmbeddedWallet() && getEmbeddedAddress() === walletAddress;
@@ -553,12 +606,25 @@ export default function HomePage() {
       <div style={heroTransparent}>
         <div style={headerRowWithPadding}>
           <span style={eventName}>EthCC[9] Cannes</span>
-          <button
-            onClick={() => navigate("/leaderboard")}
-            style={trophyBtn}
-          >
-            <Ic.Trophy s={22} c="#0a0a0a" />
-          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            {walletAddress && (
+              <button
+                onClick={() => navigate("/profile")}
+                style={notificationBtn}
+              >
+                <Ic.Bell s={22} c="#0a0a0a" />
+                {notificationCount > 0 && (
+                  <span style={notificationBadge}>{notificationCount}</span>
+                )}
+              </button>
+            )}
+            <button
+              onClick={() => navigate("/leaderboard")}
+              style={trophyBtn}
+            >
+              <Ic.Trophy s={22} c="#0a0a0a" />
+            </button>
+          </div>
         </div>
         <div style={balanceWrap}>
           <div style={balanceAmount}>
@@ -686,7 +752,7 @@ export default function HomePage() {
       )}
 
       {/* ── Vibe Matches (real on-chain data) ────────────── */}
-      {vibeMatches.length > 0 && (
+      {vibeMatches.length > 0 && !vibesLoading && (
         <>
           <div style={sectionHeader}>
             <span style={sectionTitle}>Nearby Vibes</span>
@@ -707,11 +773,14 @@ export default function HomePage() {
                 <div style={vibeAvatar(avatarColor(m.label))}>
                   {m.label.slice(2, 4).toUpperCase()}
                 </div>
-                <div style={vibeLabel}>
-                  {m.label.slice(0, 6)}...{m.label.slice(-4)}
-                </div>
+                <UserLabel address={m.label} style={vibeLabel} />
                 <div style={vibeTopics}>
-                  {m.sharedTopics.slice(0, 2).join(", ")}
+                  {m.sharedTopics.length > 0
+                    ? `${m.sharedTopics.length} shared interest${m.sharedTopics.length > 1 ? 's' : ''}`
+                    : m.sharedSessions.length > 0
+                    ? `${m.sharedSessions.length} shared session${m.sharedSessions.length > 1 ? 's' : ''}`
+                    : 'Similar vibe'
+                  }
                 </div>
                 <span style={vibeScore}>{m.matchScore}%</span>
               </div>
@@ -719,10 +788,22 @@ export default function HomePage() {
           </div>
         </>
       )}
-      {vibesLoading && (
-        <div style={loadingWrap}>
-          <span style={loadingText}>Finding vibe matches...</span>
-        </div>
+      {vibesLoading && vibeMatches.length === 0 && (
+        <>
+          <div style={sectionHeader}>
+            <span style={sectionTitle}>Nearby Vibes</span>
+          </div>
+          <div style={vibeScrollRow}>
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} style={vibeCard}>
+                <SkeletonCircle size={48} />
+                <Skeleton height={14} width="80%" />
+                <Skeleton height={11} width="60%" />
+                <Skeleton height={20} width={40} borderRadius={6} />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* ── Today's Sessions ───────────────────────────────── */}

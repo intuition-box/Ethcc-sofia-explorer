@@ -11,10 +11,9 @@
 
 import graphData from "../../../bdd/intuition_graph.json";
 import topicGraph from "../../../bdd/web3_topics_graph.json";
-import { STORAGE_KEYS } from "../config/constants";
+import { STORAGE_KEYS, CHAIN_CONFIG } from "../config/constants";
 import { GraphQLClient, GET_ACCOUNT_POSITIONS, type GetAccountPositionsQuery } from "@ethcc/graphql";
 import { GQL_URL } from "../config/constants";
-import { StorageService } from "./StorageService";
 
 const TRACK_ATOM_IDS = graphData.trackAtomIds as Record<string, string>;
 const SESSION_ATOM_IDS = graphData.sessionIdToAtomId as Record<string, string>;
@@ -38,12 +37,34 @@ interface SyncResult {
   interests: string[];
   sessions: string[];
   votes: string[];
+  atomId?: string;
 }
 
 /**
  * Fetch all on-chain positions for a wallet and map them to app data.
  * Updates localStorage with the results.
  */
+/**
+ * Calculate the user's atom ID from their wallet address.
+ * This matches the on-chain atom ID for the wallet.
+ */
+async function calculateUserAtomId(address: string): Promise<string> {
+  try {
+    const { ethers } = await import("ethers");
+    const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+    const multiVault = new ethers.Contract(
+      CHAIN_CONFIG.MULTIVAULT,
+      ["function calculateAtomId(bytes data) pure returns (bytes32)"],
+      provider
+    );
+    const hexData = ethers.hexlify(ethers.toUtf8Bytes(address.toLowerCase()));
+    return await multiVault.calculateAtomId(hexData);
+  } catch (err) {
+    console.error("[profileSync] Failed to calculate atom ID:", err);
+    return "";
+  }
+}
+
 export async function syncProfileFromChain(address: string): Promise<SyncResult> {
   if (!address) return { interests: [], sessions: [], votes: [] };
 
@@ -53,6 +74,9 @@ export async function syncProfileFromChain(address: string): Promise<SyncResult>
     { address: address.toLowerCase(), limit: 200 }
   );
   const positions = data.positions ?? [];
+
+  // Calculate user atom ID
+  const atomId = await calculateUserAtomId(address);
 
   const interests = new Set<string>();
   const sessionIds = new Set<string>();
@@ -90,12 +114,8 @@ export async function syncProfileFromChain(address: string): Promise<SyncResult>
     }
   }
 
-  // Merge into localStorage (don't overwrite, only add)
-  const existingTopics = StorageService.loadTopics();
-  for (const t of interests) existingTopics.add(t);
-  StorageService.saveTopics(existingTopics);
-
-  // Sessions from chain go to PUBLISHED_SESSIONS only, NOT cart
+  // Note: Interests are no longer persisted to localStorage
+  // They are derived from sessions in cart or synced from on-chain positions
 
   // Published sessions
   const existingPublished: string[] = (() => {
@@ -117,18 +137,20 @@ export async function syncProfileFromChain(address: string): Promise<SyncResult>
   }
   localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, JSON.stringify(existingVotes));
 
-  // Remove synced interests from pending topics (they're now published)
-  try {
-    const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
-    const stillPending = pending.filter((t) => !interests.has(t));
-    if (stillPending.length !== pending.length) {
-      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify(stillPending));
-    }
-  } catch { /* ignore */ }
+  // Save profile data including atomId for notifications
+  const profile = {
+    atomId,
+    address,
+    interests: [...interests],
+    sessions: [...sessionIds],
+    votes: [...votes],
+  };
+  localStorage.setItem(STORAGE_KEYS.PROFILE, JSON.stringify(profile));
 
   return {
     interests: [...interests],
     sessions: [...sessionIds],
     votes: [...votes],
+    atomId,
   };
 }
