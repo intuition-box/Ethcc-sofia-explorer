@@ -238,6 +238,63 @@
   margin-bottom: 0;
 }
 
+/* ─── Signing progress card ──────────────────────── */
+.signingCard {
+  margin-top: 16px;
+  padding: 20px;
+  text-align: center;
+  border-color: var(--primary);
+}
+
+.signingSpinner {
+  font-size: 48px;
+  margin-bottom: 16px;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+.signingTitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--white);
+  margin: 0 0 8px;
+}
+
+.signingStatus {
+  font-size: 13px;
+  color: var(--primary);
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+
+.signingSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.signingSteps > div {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  border-left: 2px solid var(--primary);
+}
+
+.signingHint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin: 0;
+  font-style: italic;
+}
+
 .errorCard {
   margin-top: 16px;
   padding: 14px;

@@ -1,0 +1,37 @@
+feat: add mobile-optimized publish success UI with vibe matching
+
+- Add PublishSuccessSheet component with bottom sheet design for mobile PWA
+- Replace share button with "Find Your Tribe" feature to discover users with shared interests
+- Add back navigation button to CartPage header for better UX
+- Display follow items in cart with proper visual feedback
+- Capture transaction hash and user atom ID during publish flow
+- Add cost breakdown with collapsible details (deposits, MultiVault fees, Sofia fees)
+- Implement haptic feedback for all touch interactions
+- Show up to 6 vibe matches with shared topics/sessions
+- Add loading spinner and empty state for match discovery
+- Fix TypeScript errors and remove unused variables
+- Optimize animations with prefers-reduced-motion support
+
+New component: web/src/components/cart/PublishSuccessSheet.tsx
+- Mobile-first bottom sheet (slides from bottom on mobile, modal on desktop)
+- Visual summary cards for all published items (interests, sessions, votes, ratings, follows)
+- Collapsible cost breakdown showing real blockchain costs
+- "Find Your Tribe" button to discover vibe matches
+- Haptic feedback on all interactions (PWA-optimized)
+- Loading states with spinner animation
+- Empty state with encouragement message
+- Links to transaction explorer and Intuition profile
+- Quick navigation to votes/agenda pages
+
+CartPage improvements:
+- Sticky header with back button (navigate to previous page)
+- "Go Back" button in empty cart state
+- Capture tx hash and user atom ID during publish
+- Pass real cost breakdown to success sheet
+
+Documentation updates:
+- Added PublishSuccessSheet section to CLAUDE.md
+- Added "New Features (March 2026)" section to README.md
+- Updated component structure in both docs
+
+🤖 Generated with Claude Code

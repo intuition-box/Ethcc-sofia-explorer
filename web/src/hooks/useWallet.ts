@@ -7,10 +7,10 @@ import {
   ensureUserAtom,
   buildProfileTriples,
   createProfileTriples,
-  estimateFees,
 } from "../services/intuition";
-import type { WalletConnection, FeeEstimate } from "../services/intuition";
+import type { WalletConnection } from "../services/intuition";
 import { StorageService } from "../services/StorageService";
+import { FeeCalculationService, type CostBreakdown } from "../services/FeeCalculationService";
 
 export type WalletStep = "recap" | "wallet" | "connected" | "signing" | "created";
 
@@ -23,17 +23,27 @@ export function useWallet() {
   const [walletAddress, setWalletAddress] = useState("");
   const [walletState, setWalletState] = useState<WalletConnection | null>(null);
   const [trustBalance, setTrustBalance] = useState<string | null>(null);
-  const [feeEstimate, setFeeEstimate] = useState<FeeEstimate | null>(null);
+  const [costBreakdown, setCostBreakdown] = useState<CostBreakdown | null>(null);
 
   const cart = useMemo(() => StorageService.loadCart(), []);
-  const topics = useMemo(() => StorageService.loadTopics(), []);
+
+  // Extract derived interests from sessions in cart
+  const derivedInterests = useMemo(() => {
+    const tracks = new Set<string>();
+    cart.forEach((id) => {
+      if (id.startsWith("interest:")) {
+        tracks.add(id.slice(9)); // Remove "interest:" prefix
+      }
+    });
+    return tracks;
+  }, [cart]);
 
   const selectedSessions = useMemo(
     () => sessions.filter((s) => cart.has(s.id)),
     [cart]
   );
 
-  const tripleCount = topics.size + selectedSessions.length;
+  const tripleCount = derivedInterests.size + selectedSessions.length;
 
   async function handleConnect() {
     setTxError("");
@@ -63,14 +73,30 @@ export function useWallet() {
       const bal = await connection.provider.getBalance(connection.address);
       setTrustBalance(connection.ethers.formatEther(bal));
 
-      // Estimate fees in background
+      // Calculate detailed cost breakdown using service
       if (tripleCount > 0) {
+        setTxStatus("Calculating transaction costs...");
         try {
-          const fees = await estimateFees(connection.multiVault, connection.proxy, tripleCount);
-          setFeeEstimate(fees);
-        } catch {
-          // Fee estimate is non-critical
+          const breakdown = await FeeCalculationService.calculateTripleCreationCost(
+            connection,
+            tripleCount
+          );
+          setCostBreakdown(breakdown);
+
+          // Check if balance is sufficient
+          if (bal < breakdown.grandTotal) {
+            const deficit = breakdown.grandTotal - bal;
+            setTxError(
+              `Insufficient $TRUST: You need ${FeeCalculationService.formatTrust(breakdown.grandTotal)} $TRUST ` +
+              `but only have ${FeeCalculationService.formatTrust(bal)} $TRUST. ` +
+              `Please add ${FeeCalculationService.formatTrust(deficit)} $TRUST to continue.`
+            );
+          }
+        } catch (err) {
+          console.error("Cost breakdown failed:", err);
+          setTxError("Unable to calculate transaction costs. Please try again.");
         }
+        setTxStatus("");
       }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -106,17 +132,16 @@ export function useWallet() {
     setStep("signing");
 
     try {
-      const { proxy, ethers, address } = walletState;
+      const { proxy, ethers, address, multiVault } = walletState;
 
       setTxStatus("Checking your atom on Intuition...");
-      const { multiVault } = walletState;
       const atomId = await ensureUserAtom(multiVault, proxy, address, ethers);
       setUserAtomId(atomId);
 
       const triples = buildProfileTriples(
         atomId,
-        [...topics],
-        [...cart]
+        [...derivedInterests],
+        selectedSessions.map(s => s.id)
       );
 
       if (triples.length === 0) {
@@ -125,14 +150,20 @@ export function useWallet() {
         return;
       }
 
-      setTxStatus(
-        `Creating ${triples.length} triples with deposit... Confirm in your wallet`
+      // Use createProfileTriples with onStep callback for real-time progress updates
+      // The service layer (SimulationService, FeeCalculationService, ErrorHandlingService)
+      // handles all validation, simulation, and error parsing
+      const result = await createProfileTriples(
+        walletState,
+        triples,
+        undefined, // Use default deposit
+        (step) => setTxStatus(step) // Real-time progress updates
       );
-      const result = await createProfileTriples(multiVault, proxy, address, triples);
 
       setTxHash(result.hash);
       setStep("created");
     } catch (e: unknown) {
+      // Error is already formatted by ErrorHandlingService in intuition.ts
       const msg = e instanceof Error ? e.message : String(e);
       setTxError(msg);
       setStep("connected");
@@ -148,9 +179,9 @@ export function useWallet() {
     walletAddress,
     userAtomId,
     trustBalance,
-    feeEstimate,
+    costBreakdown,
     cart,
-    topics,
+    derivedInterests,
     selectedSessions,
     tripleCount,
     handleConnect,

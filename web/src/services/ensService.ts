@@ -31,9 +31,24 @@ const TEXT_RECORDS = [
   "email",
 ] as const;
 
-// Cache to avoid repeated lookups
+/**
+ * Module-level cache for ENS profile lookups.
+ *
+ * IMPORTANT: This cache is shared across all users in the same browser session.
+ * - Cached entries expire after 5 minutes (CACHE_TTL)
+ * - Call `clearEnsCache()` on logout to prevent data leakage across users
+ * - Safe to use because ENS data is public blockchain data
+ *
+ * @example
+ * ```typescript
+ * // On user logout:
+ * clearEnsCache();
+ * ```
+ */
 const cache = new Map<string, { profile: EnsProfile; timestamp: number }>();
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+/** Cache TTL: 5 minutes */
+const CACHE_TTL = 5 * 60 * 1000;
 
 /**
  * Resolve an Ethereum address to its ENS profile (name + text records).
@@ -107,6 +122,29 @@ export async function resolveEnsProfile(address: string): Promise<EnsProfile> {
 
   cache.set(key.toLowerCase(), { profile, timestamp: Date.now() });
   return profile;
+}
+
+/**
+ * Clear the ENS profile cache.
+ *
+ * Call this when:
+ * - User logs out (to prevent data leakage across users)
+ * - After a long session (to refresh stale data)
+ * - When you need to force a fresh lookup
+ *
+ * @example
+ * ```typescript
+ * // In logout handler:
+ * function handleLogout() {
+ *   clearEnsCache();
+ *   localStorage.clear();
+ *   // ... other cleanup
+ * }
+ * ```
+ */
+export function clearEnsCache(): void {
+  cache.clear();
+  console.log("[ENS] Cache cleared");
 }
 
 // resolveEnsProfiles (batch) removed — unused

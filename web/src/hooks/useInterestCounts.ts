@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { GQL_URL } from "../config/constants";
-import { GraphQLClient } from "@ethcc/graphql";
+import { GraphQLClient, GET_POSITIONS_BY_ATOMS, type GetPositionsByAtomsQuery } from "@ethcc/graphql";
 import { TRACK_ATOM_IDS } from "../services/intuition";
 
 /**
  * Count how many users have deposited (taken a position) on each track atom.
  * Position-based: reads vault positions instead of triples.
+ * Now uses type-safe codegen query instead of inline string interpolation.
  */
 export function useInterestCounts(topics: Set<string>): Record<string, number> {
   const [interestCounts, setInterestCounts] = useState<Record<string, number>>({});
@@ -17,28 +18,35 @@ export function useInterestCounts(topics: Set<string>): Record<string, number> {
       .filter(Boolean);
     if (trackIds.length === 0) return;
 
-    const query = `{
-      ${trackIds.map((id, i) => `
-        p${i}: positions_aggregate(where: {
-          atom: { term_id: { _eq: "${id}" } }
-          shares: { _gt: "0" }
-        }) { aggregate { count } }
-      `).join("")}
-    }`;
-
     const client = new GraphQLClient({ endpoint: GQL_URL });
-    client.request<Record<string, { aggregate: { count: number } }>>(query)
+    client.request<GetPositionsByAtomsQuery>(GET_POSITIONS_BY_ATOMS, { atomIds: trackIds })
       .then((data) => {
+        // Count unique accounts per atom
         const counts: Record<string, number> = {};
-        const topicList = [...topics];
-        trackIds.forEach((id, i) => {
-          const c = data[`p${i}`]?.aggregate?.count ?? 0;
-          const name = topicList.find((t) => TRACK_ATOM_IDS[t] === id);
-          if (name) counts[name] = c;
-        });
+        const atomToTrack = new Map(Object.entries(TRACK_ATOM_IDS).map(([k, v]) => [v, k]));
+
+        const accountsByAtom = new Map<string, Set<string>>();
+        for (const pos of data.positions) {
+          const atomId = pos.term_id;
+          if (!accountsByAtom.has(atomId)) {
+            accountsByAtom.set(atomId, new Set());
+          }
+          accountsByAtom.get(atomId)!.add(pos.account_id);
+        }
+
+        for (const [atomId, accounts] of accountsByAtom) {
+          const trackName = atomToTrack.get(atomId);
+          if (trackName) {
+            counts[trackName] = accounts.size;
+          }
+        }
+
         setInterestCounts(counts);
       })
-      .catch(() => {});
+      .catch((err) => {
+        console.warn('[useInterestCounts] Failed to fetch interest counts from GraphQL:', err);
+        // Continue silently - UI will show no counts (empty object)
+      });
   }, [topics]);
 
   return interestCounts;

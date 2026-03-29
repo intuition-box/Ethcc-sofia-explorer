@@ -1,0 +1,49 @@
+# Query for vibe match positions (tracks and votes)
+query GetVibeMatchPositions($atomIds: [String!]!) {
+  positions(
+    where: {
+      term_id: { _in: $atomIds }
+      shares: { _gt: "0" }
+    }
+    limit: 500
+  ) {
+    account_id
+    term_id
+    shares
+  }
+}
+
+# Query for vibe match sessions (attending triples)
+query GetVibeMatchSessions($predicateId: String!, $sessionAtomIds: [String!]!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $sessionAtomIds } }
+    }
+    limit: 500
+  ) {
+    subject {
+      term_id
+      label
+    }
+    object {
+      term_id
+    }
+  }
+}
+
+# Query for user's attended sessions
+query GetUserAttendedSessions($predicateId: String!, $userAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      subject: { label: { _ilike: $userAddress } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+    created_at
+  }
+}

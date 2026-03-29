@@ -8,7 +8,6 @@ import { useOnboardingWallet } from "../hooks/useOnboardingWallet";
 import { useOnboardingPublish } from "../hooks/useOnboardingPublish";
 import { useVibeMatches } from "../hooks/useVibeMatches";
 import { usePwaInstall } from "../hooks/usePwaInstall";
-import { StorageService } from "../services/StorageService";
 import { STORAGE_KEYS } from "../config/constants";
 
 const page: CSSProperties = {
@@ -23,7 +22,7 @@ export default function OnboardingPage() {
   useEffect(() => {
     const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET
       || localStorage.getItem(STORAGE_KEYS.ONBOARDED) === "1"
-      || StorageService.loadTopics().size > 0;
+      || localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS); // Has published = onboarded
     if (hasOnboarded) navigate("/home", { replace: true });
   }, [navigate]);
 
@@ -71,8 +70,8 @@ export default function OnboardingPage() {
   };
 
   const handleComplete = () => {
-    StorageService.saveTopics(selectedTracks);
-    // Sessions already in PUBLISHED_SESSIONS — don't add to cart
+    // Interests are published on-chain, no need to save to localStorage
+    // Sessions already in PUBLISHED_SESSIONS via useOnboardingPublish
     localStorage.setItem(STORAGE_KEYS.ONBOARDED, "1");
     navigate("/home");
   };
@@ -123,8 +122,8 @@ export default function OnboardingPage() {
           onBack={() => setStep(5)}
           onPublish={handlePublish}
           onSkip={() => {
-            // Save interests even without full publish
-            StorageService.saveTopics(selectedTracks);
+            // User skips publishing - mark as onboarded anyway
+            // Interests will remain unpublished until user manually publishes later
             localStorage.setItem(STORAGE_KEYS.ONBOARDED, "1");
             navigate("/home");
           }}

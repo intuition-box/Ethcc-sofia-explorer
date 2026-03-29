@@ -181,6 +181,24 @@ const statusBanner = (type: "success" | "error" | "info"): CSSProperties => ({
   wordBreak: "break-all" as const,
 });
 
+const receivedNotification: CSSProperties = {
+  position: "fixed",
+  top: 80,
+  left: "50%",
+  transform: "translateX(-50%)",
+  zIndex: 1000,
+  background: C.success,
+  color: "#0a0a0a",
+  padding: "12px 24px",
+  borderRadius: R.btn,
+  fontSize: 15,
+  fontWeight: 700,
+  boxShadow: "0 4px 16px rgba(34,197,94,0.3)",
+  animation: "slideDown 0.3s ease",
+  maxWidth: "90%",
+  textAlign: "center" as const,
+};
+
 
 // ─── Component ───────────────────────────────────────
 
@@ -200,6 +218,9 @@ export default function SendPage() {
   const [txHash, setTxHash] = useState("");
   const [txError, setTxError] = useState("");
   const [balance, setBalance] = useState<string | null>(null);
+  const [previousBalance, setPreviousBalance] = useState<string | null>(null);
+  const [showReceivedNotif, setShowReceivedNotif] = useState(false);
+  const [receivedAmount, setReceivedAmount] = useState("0");
 
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState("");
@@ -266,6 +287,43 @@ export default function SendPage() {
   useEffect(() => {
     if (mode !== "scan") stopScanner();
   }, [mode, stopScanner]);
+
+  // Poll balance when in QR mode to detect incoming transfers
+  useEffect(() => {
+    if (mode !== "qr" || !walletAddr) return;
+
+    const pollBalance = async () => {
+      try {
+        const { ethers } = await import("ethers");
+        const { CHAIN_CONFIG } = await import("../config/constants");
+        const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const bal = await provider.getBalance(walletAddr);
+        const formatted = ethers.formatEther(bal);
+
+        // Check if balance increased
+        if (previousBalance && parseFloat(formatted) > parseFloat(previousBalance)) {
+          const diff = (parseFloat(formatted) - parseFloat(previousBalance)).toFixed(4);
+          setReceivedAmount(diff);
+          setShowReceivedNotif(true);
+          // Auto-hide after 5 seconds
+          setTimeout(() => setShowReceivedNotif(false), 5000);
+        }
+
+        setPreviousBalance(formatted);
+        setBalance(formatted);
+      } catch (err) {
+        console.error("Failed to poll balance:", err);
+      }
+    };
+
+    // Initial poll
+    pollBalance();
+
+    // Poll every 3 seconds
+    const interval = setInterval(pollBalance, 3000);
+
+    return () => clearInterval(interval);
+  }, [mode, walletAddr, previousBalance]);
 
   const presets = ["5", "10", "50"];
 
@@ -341,6 +399,13 @@ export default function SendPage() {
 
   return (
     <div style={page}>
+      {/* Received Notification */}
+      {showReceivedNotif && (
+        <div style={receivedNotification}>
+          🎉 Received +{receivedAmount} $TRUST!
+        </div>
+      )}
+
       {/* Header */}
       <div style={header}>
         <button style={backBtn} onClick={() => navigate(-1)}>
@@ -363,7 +428,16 @@ export default function SendPage() {
       <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 16px 80px" }}>
 
       {/* ─── QR Code Mode ────────────────── */}
-      {mode === "qr" && <QrDisplay address={walletAddr} />}
+      {mode === "qr" && (
+        <>
+          <QrDisplay address={walletAddr} />
+          {balance && (
+            <div style={statusBanner("info")}>
+              Current balance: {parseFloat(balance).toFixed(4)} $TRUST
+            </div>
+          )}
+        </>
+      )}
 
       {/* ─── Scan & Send Mode ────────────── */}
       {mode === "scan" && (

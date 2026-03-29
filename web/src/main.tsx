@@ -25,6 +25,7 @@ import VibesListPage from "./pages/VibesListPage";
 import SettingsPage from "./pages/SettingsPage";
 import TopicDetailPage from "./pages/TopicDetailPage";
 import RateSessionPage from "./pages/RateSessionPage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -56,6 +57,8 @@ createRoot(document.getElementById("root")!).render(
             <Route path="/invite" element={<InvitePage />} />
             <Route path="/vibes" element={<VibesListPage />} />
             <Route path="/vibe/:index" element={<VibeProfilePage />} />
+            <Route path="/vibe-profile/:address" element={<VibeProfilePage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
 
             {/* Fallback */}
             <Route path="*" element={<Navigate to="/" replace />} />

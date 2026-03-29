@@ -48,7 +48,7 @@ export function useOnboardingWallet() {
     if (walletError) setTxError(walletError);
   }, [walletError]);
 
-  // Balance refresh
+  // Balance refresh - defined inline to avoid circular dependency
   const refreshEmbeddedBalance = useCallback(async () => {
     if (!embeddedWallet) return;
     setBalanceRefreshing(true);
@@ -61,13 +61,26 @@ export function useOnboardingWallet() {
     setBalanceRefreshing(false);
   }, [embeddedWallet]);
 
-  // Poll balance every 10s
+  // Poll balance every 10s (only depends on embeddedWallet changing, not the callback)
   useEffect(() => {
     if (!embeddedWallet) return;
-    refreshEmbeddedBalance();
-    const interval = setInterval(refreshEmbeddedBalance, 10000);
+
+    // Define refresh inline to avoid circular dependency
+    const doRefresh = async () => {
+      setBalanceRefreshing(true);
+      try {
+        const { ethers } = await import("ethers");
+        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const bal = await rpcProvider.getBalance(embeddedWallet.address);
+        setEmbeddedBalance(ethers.formatEther(bal));
+      } catch { /* ignore */ }
+      setBalanceRefreshing(false);
+    };
+
+    doRefresh(); // Initial fetch
+    const interval = setInterval(doRefresh, 10000);
     return () => clearInterval(interval);
-  }, [embeddedWallet, refreshEmbeddedBalance]);
+  }, [embeddedWallet]); // ✅ FIXED: Only depends on embeddedWallet
 
   // Trust received notification
   const [trustNotified, setTrustNotified] = useState(false);

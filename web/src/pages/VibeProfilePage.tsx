@@ -1,23 +1,21 @@
-import { useMemo, useState, useEffect, useCallback, type CSSProperties } from "react";
+import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { GQL_URL } from "../config/constants";
 import { GraphQLClient } from "@ethcc/graphql";
-import { sessions, tracks } from "../data";
+import { sessions } from "../data";
 import { SESSION_ATOM_IDS, PREDICATES, fetchUserNickname } from "../services/intuition";
 import { Ic } from "../components/ui/Icons";
 import { useEnsProfile } from "../hooks/useEnsProfile";
 import { getSocialLinks } from "../services/ensService";
 import { useVibeMatches } from "../hooks/useVibeMatches";
-import { useCart } from "../hooks/useCart";
 import { useFollow } from "../hooks/useFollow";
-import { StorageService } from "../services/StorageService";
 import { STORAGE_KEYS } from "../config/constants";
+import { SkeletonProfile, SkeletonSessionList } from "../components/ui/Skeleton";
 import {
   scrollContent, fluidContent, cardTitle, emptyStateText,
   statsRow, statCell, statValue, statLabel, listColumn, trackBadge, trackBadgeSmall,
-  glassInfoCard, modalOverlay, modalSheet, modalHeader, modalTitleRow,
-  modalDesc, modalScrollArea, closeBtn, iconBox, truncateLabel, getInitials,
+  glassInfoCard, truncateLabel, getInitials,
 } from "../styles/common";
 
 // ─── Styles ──────────────────────────────────────────
@@ -62,28 +60,11 @@ const sectionTitleStyle: CSSProperties = {
   fontSize: 15, fontWeight: 700, color: C.textPrimary, padding: "20px 16px 10px",
 };
 const topicsWrap: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" };
-const sessionItem = (hasTrack: boolean): CSSProperties => ({
+const sessionItem: CSSProperties = {
   ...glassSurface, padding: 12, display: "flex", alignItems: "center",
-  gap: 10, cursor: "pointer", opacity: hasTrack ? 1 : 0.5,
-});
-const lockIcon: CSSProperties = { fontSize: 16, flexShrink: 0 };
+  gap: 10, cursor: "pointer",
+};
 const sessionMeta: CSSProperties = { fontSize: 11, color: C.textSecondary, marginTop: 4 };
-const modalTrackName: CSSProperties = { fontSize: 16, fontWeight: 700, color: C.textPrimary };
-const modalTrackInfo: CSSProperties = { fontSize: 11, color: C.textSecondary };
-const addBtn = (added: boolean): CSSProperties => ({
-  width: "100%", height: 44, borderRadius: R.btn,
-  background: added ? C.successLight : C.flat,
-  color: added ? C.success : "#0a0a0a",
-  fontSize: 14, fontWeight: 600, border: "none",
-  cursor: added ? "default" : "pointer", fontFamily: FONT,
-  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-  marginBottom: 16,
-});
-const modalListHeader: CSSProperties = { fontSize: 12, fontWeight: 600, color: C.textTertiary, marginBottom: 8 };
-const modalListItem: CSSProperties = { ...glassSurface, padding: 10, display: "flex", alignItems: "center", gap: 8, opacity: 0.6 };
-const modalItemIcon: CSSProperties = { fontSize: 14, flexShrink: 0 };
-const modalItemTitle: CSSProperties = { fontSize: 12, fontWeight: 600, color: C.textPrimary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const modalItemMeta: CSSProperties = { fontSize: 10, color: C.textSecondary, marginTop: 2 };
 const notFoundCenter: CSSProperties = {
   flex: 1, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", padding: 24,
 };
@@ -92,11 +73,11 @@ const notFoundCenter: CSSProperties = {
 
 export default function VibeProfilePage() {
   const navigate = useNavigate();
-  const { index } = useParams<{ index: string }>();
+  const { index, address } = useParams<{ index?: string; address?: string }>();
 
   // Load real vibe matches
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
-  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
   const publishedSessionIds = useMemo<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
     catch { return []; }
@@ -105,29 +86,47 @@ export default function VibeProfilePage() {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]"); }
     catch { return []; }
   }, []);
-  const { matches } = useVibeMatches(savedTopics, publishedSessionIds, walletAddress, votedTopicIds);
-  const { addToCart } = useCart();
+
+  // Sync on-chain interests when wallet connects
+  useEffect(() => {
+    if (walletAddress) {
+      import("../services/profileSync").then(({ syncProfileFromChain }) => {
+        syncProfileFromChain(walletAddress).then(result => {
+          setSavedTopics(new Set(result.interests));
+        }).catch(err => {
+          console.error("Failed to sync:", err);
+        });
+      });
+    }
+  }, [walletAddress]);
+
+  const { matches, loading: vibeLoading } = useVibeMatches(savedTopics, publishedSessionIds, walletAddress, votedTopicIds);
   const { follow: followUser, pendingFollows, publishedFollows } = useFollow();
 
-  // Track interest modal
-  const [lockedTrack, setLockedTrack] = useState<string | null>(null);
-  const [pendingTopics, setPendingTopics] = useState<Set<string>>(() => {
-    try { const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS); return raw ? new Set(JSON.parse(raw)) : new Set(); }
-    catch { return new Set(); }
-  });
-
-  const addInterest = useCallback((track: string) => {
-    const next = new Set(pendingTopics);
-    next.add(track);
-    setPendingTopics(next);
-    localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
-    addToCart(track);
-    setLockedTrack(null);
-  }, [pendingTopics, addToCart]);
-
-  // Find the match by index
-  const idx = parseInt(index ?? "", 10);
-  const match = matches[idx] ?? null;
+  // Find the match by index OR by address
+  let match = null;
+  if (index !== undefined) {
+    const idx = parseInt(index, 10);
+    match = matches[idx] ?? null;
+  } else if (address) {
+    // Find match by address (label)
+    const foundMatch = matches.find(m => m.label.toLowerCase() === address.toLowerCase());
+    if (foundMatch) {
+      match = foundMatch;
+    } else {
+      // Create a minimal match object for unknown users
+      match = {
+        subjectTermId: address,
+        label: address,
+        sharedTopics: [],
+        sharedSessions: [],
+        matchScore: 0,
+        trackScore: 0,
+        voteScore: 0,
+        sessionScore: 0,
+      };
+    }
+  }
 
   // Fetch this user's attending sessions from chain
   const ATOM_TO_SESSION = useMemo(() => new Map(
@@ -169,7 +168,25 @@ export default function VibeProfilePage() {
   const { profile: ensProfile } = useEnsProfile(addr);
   const socialLinks = ensProfile ? getSocialLinks(ensProfile) : [];
 
-  if (!match) {
+  // Show loading state while vibe matches are loading
+  if (vibeLoading) {
+    return (
+      <div style={page}>
+        <div style={headerBar}>
+          <button style={backBtn} onClick={() => navigate(-1)}><Ic.Back c={C.textPrimary} /></button>
+          <div style={headerTitle}>Profile</div>
+        </div>
+        <div style={scrollContent}>
+          <SkeletonProfile />
+          <div style={sectionTitleStyle}>Sessions</div>
+          <SkeletonSessionList count={5} />
+        </div>
+      </div>
+    );
+  }
+
+  // If not loading and still no match, show "not found"
+  if (!vibeLoading && !match) {
     return (
       <div style={page}>
         <div style={headerBar}>
@@ -300,20 +317,18 @@ export default function VibeProfilePage() {
               if (!sess) return null;
               const sts = getTrackStyle(sess.track);
               const isShared = match.sharedSessions.includes(sessId);
-              const hasTrack = savedTopics.has(sess.track);
               return (
                 <div
                   key={sessId}
-                  onClick={() => hasTrack ? navigate(`/session/${sessId}`) : setLockedTrack(sess.track)}
-                  style={sessionItem(hasTrack)}
+                  onClick={() => navigate(`/session/${sessId}`)}
+                  style={sessionItem}
                 >
-                  {!hasTrack && <span style={lockIcon}>🔒</span>}
                   <div style={fluidContent}>
-                    <div style={cardTitle}>{hasTrack ? sess.title : "Session locked"}</div>
-                    <div style={sessionMeta}>{hasTrack ? `${sess.startTime} · ${sess.stage}` : "Add this interest to see details"}</div>
+                    <div style={cardTitle}>{sess.title}</div>
+                    <div style={sessionMeta}>{sess.startTime} · {sess.stage}</div>
                     <span style={{ ...trackBadgeSmall(sts.color), marginTop: 6 }}>{sts.icon} {sess.track}</span>
                   </div>
-                  {hasTrack && isShared && <Ic.Check s={14} c={C.success} />}
+                  {isShared && <Ic.Check s={14} c={C.success} />}
                 </div>
               );
             })}
@@ -325,56 +340,6 @@ export default function VibeProfilePage() {
         )}
       </div>
 
-      {/* Add Interest Modal */}
-      {lockedTrack && (() => {
-        const ts = getTrackStyle(lockedTrack);
-        const trackInfo = tracks.find((t) => t.name === lockedTrack);
-        const trackSessions = sessions.filter((s) => s.track === lockedTrack);
-        const alreadyAdded = pendingTopics.has(lockedTrack) || savedTopics.has(lockedTrack);
-        return (
-          <div style={modalOverlay} onClick={() => setLockedTrack(null)}>
-            <div style={modalSheet} onClick={(e) => e.stopPropagation()}>
-              <div style={modalHeader}>
-                <div style={modalTitleRow}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={iconBox(ts.color)}>{ts.icon}</div>
-                    <div>
-                      <div style={modalTrackName}>{lockedTrack}</div>
-                      {trackInfo && <div style={modalTrackInfo}>{trackInfo.sector} · {trackInfo.sessionCount} sessions</div>}
-                    </div>
-                  </div>
-                  <button onClick={() => setLockedTrack(null)} style={closeBtn}>
-                    <Ic.X s={16} c={C.textSecondary} />
-                  </button>
-                </div>
-                <div style={modalDesc}>
-                  Add this interest to your profile to unlock {trackSessions.length} sessions and see their details.
-                </div>
-                <button onClick={() => !alreadyAdded && addInterest(lockedTrack)} style={addBtn(alreadyAdded)}>
-                  {alreadyAdded
-                    ? <><Ic.Check s={16} c={C.success} /> Added to cart</>
-                    : <><Ic.Plus s={16} c="#0a0a0a" /> Add Interest</>
-                  }
-                </button>
-              </div>
-              <div style={modalScrollArea}>
-                <div style={modalListHeader}>Sessions in this track</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {trackSessions.map((s) => (
-                    <div key={s.id} style={modalListItem}>
-                      <span style={modalItemIcon}>{ts.icon}</span>
-                      <div style={fluidContent}>
-                        <div style={modalItemTitle}>{s.title}</div>
-                        <div style={modalItemMeta}>{s.startTime} · {s.stage}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
     </div>
   );
 }

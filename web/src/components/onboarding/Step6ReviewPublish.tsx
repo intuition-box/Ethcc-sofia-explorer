@@ -215,7 +215,7 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
           {walletState === "connected" && (parseFloat(w.effectiveBalance ?? "0") > 0
             ? "Wallet connected. Ready to publish."
             : "Scan QR to receive $TRUST, then sign to publish on-chain.")}
-          {walletState === "signing" && (w.txStatus || "Signing transaction...")}
+          {walletState === "signing" && "⏳ Transaction in progress - this may take 30-60 seconds..."}
           {walletState === "done" && "Published! Redirecting..."}
         </p>
       </div>
@@ -291,6 +291,21 @@ export function Step6ReviewPublish({ selectedTracks, selectedSessions, walletSta
           <div className={styles.txRow}><span>Triples to create</span><span>{tripleCount}</span></div>
           <div className={styles.txRow}><span>Est. cost</span><span>{(tripleCount * 0.1).toFixed(1)} TRUST</span></div>
         </div>
+
+        {/* Transaction progress */}
+        {walletState === "signing" && (
+          <div className={`${shared.glass} ${styles.signingCard}`}>
+            <div className={styles.signingSpinner}>⏳</div>
+            <p className={styles.signingTitle}>Publishing to blockchain...</p>
+            <p className={styles.signingStatus}>{w.txStatus || "Creating triples on-chain"}</p>
+            <div className={styles.signingSteps}>
+              <div>1. Signing transaction</div>
+              <div>2. Broadcasting to network</div>
+              <div>3. Waiting for confirmation</div>
+            </div>
+            <p className={styles.signingHint}>This usually takes 30-60 seconds. Please don't close this window.</p>
+          </div>
+        )}
 
         {/* Error */}
         {w.txError && (

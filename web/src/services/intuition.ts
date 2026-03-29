@@ -21,6 +21,7 @@ const MULTIVAULT_ABI = [
   "function getTripleCost() view returns (uint256)",
   "function getAtomCost() view returns (uint256)",
   "function calculateAtomId(bytes data) pure returns (bytes32)",
+  "function calculateTripleId(bytes32 subjectId, bytes32 predicateId, bytes32 objectId) pure returns (bytes32)",
   "function isTermCreated(bytes32 id) view returns (bool)",
   "function approve(address sender, uint8 approvalType)",
   "function redeem(address receiver, bytes32 termId, uint256 curveId, uint256 shares, uint256 minAssets) returns (uint256)",
@@ -338,63 +339,171 @@ export function buildProfileTriples(
 /**
  * Create all profile triples in a single batch transaction via the proxy.
  * Each triple gets a deposit of `depositPerTriple` into its vault.
+ *
+ * NOW WITH SIMULATION & VALIDATION:
+ * - Verifies all atoms exist on-chain
+ * - Checks balance before each batch
+ * - Simulates transaction before sending
+ * - Provides detailed error messages on failure
  */
 const TRIPLE_BATCH_SIZE = 25;
 
 export async function createProfileTriples(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  multiVault: any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  proxy: any,
-  address: string,
+  wallet: WalletConnection,
   triples: IntuitionTriple[],
   depositPerTriple?: bigint,
   onStep?: (step: string) => void
 ): Promise<{ hash: string; blockNumber: number }> {
-  const tripleCost = await multiVault.getTripleCost();
-  const deposit = depositPerTriple ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+  // Dynamic imports to avoid circular dependencies
+  const { SimulationService } = await import("./SimulationService");
+  const { FeeCalculationService } = await import("./FeeCalculationService");
+  const { ErrorHandlingService } = await import("./ErrorHandlingService");
 
-  // Verify all atoms exist on-chain before sending any tx
+  const deposit = depositPerTriple ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
+  const { multiVault, proxy, address } = wallet;
+
+  // Step 1: Verify all atoms exist on-chain before sending any tx
+  onStep?.("Verifying atoms on-chain...");
   const allIds = [...new Set(triples.flatMap((t) => [t.subjectId, t.predicateId, t.objectId]))];
-  for (const id of allIds) {
-    const exists = await multiVault.isTermCreated(id);
-    if (!exists) {
-      throw new Error(`Atom ${id} does not exist on-chain. Cannot create triple.`);
+  const missingAtoms = await SimulationService.verifyAtomsExist(multiVault, allIds);
+
+  if (missingAtoms.length > 0) {
+    throw new Error(
+      `Cannot create triples: ${missingAtoms.length} atom(s) do not exist on-chain. ` +
+      `Missing: ${missingAtoms.slice(0, 3).join(", ")}${missingAtoms.length > 3 ? "..." : ""}`
+    );
+  }
+
+  // Step 1.5: Filter out triples that already exist
+  onStep?.("Checking which triples already exist...");
+  const triplesToCreate: IntuitionTriple[] = [];
+
+  for (const triple of triples) {
+    try {
+      const tripleId = await multiVault.calculateTripleId(
+        triple.subjectId,
+        triple.predicateId,
+        triple.objectId
+      );
+      const exists = await multiVault.isTermCreated(tripleId);
+
+      if (!exists) {
+        triplesToCreate.push(triple);
+      } else {
+        console.log(`[createProfileTriples] Triple already exists, skipping: ${triple.label}`);
+      }
+    } catch (error) {
+      console.warn(`[createProfileTriples] Could not check triple existence: ${triple.label}`, error);
+      // If we can't check, assume it needs to be created
+      triplesToCreate.push(triple);
     }
   }
 
-  // Batch triples into chunks to avoid gas limit
+  // If all triples already exist, return early
+  if (triplesToCreate.length === 0) {
+    console.log('[createProfileTriples] All triples already exist, nothing to create');
+    return { hash: "", blockNumber: 0 };
+  }
+
+  console.log(`[createProfileTriples] Creating ${triplesToCreate.length}/${triples.length} triples (${triples.length - triplesToCreate.length} already exist)`);
+
+  // Step 2: Batch triples into chunks to avoid gas limit
   let lastHash = "";
   let lastBlockNumber = 0;
-  const totalBatches = Math.ceil(triples.length / TRIPLE_BATCH_SIZE);
+  const totalBatches = Math.ceil(triplesToCreate.length / TRIPLE_BATCH_SIZE);
+  let successfulBatches = 0;
 
-  for (let i = 0; i < triples.length; i += TRIPLE_BATCH_SIZE) {
-    const batch = triples.slice(i, i + TRIPLE_BATCH_SIZE);
+  for (let i = 0; i < triplesToCreate.length; i += TRIPLE_BATCH_SIZE) {
+    const batch = triplesToCreate.slice(i, i + TRIPLE_BATCH_SIZE);
     const batchNum = Math.floor(i / TRIPLE_BATCH_SIZE) + 1;
-    onStep?.(`Publishing batch ${batchNum}/${totalBatches} (${batch.length} triples)...`);
 
     const subjectIds = batch.map((t) => t.subjectId);
     const predicateIds = batch.map((t) => t.predicateId);
     const objectIds = batch.map((t) => t.objectId);
     const assets = batch.map(() => deposit);
 
-    const n = BigInt(batch.length);
-    const totalDeposit = deposit * n;
-    const multiVaultCost = (tripleCost * n) + totalDeposit;
-    const totalCost = await proxy.getTotalCreationCost(countNonZero(assets), totalDeposit, multiVaultCost);
+    try {
+      // Step 3: Calculate cost for this batch
+      onStep?.(`Calculating cost for batch ${batchNum}/${totalBatches}...`);
+      const costBreakdown = await FeeCalculationService.calculateTripleCreationCost(
+        wallet,
+        batch.length,
+        deposit
+      );
 
-    const tx = await proxy.createTriples(
-      address,
-      subjectIds,
-      predicateIds,
-      objectIds,
-      assets,
-      CHAIN_CONFIG.CURVE_ID,
-      { value: totalCost }
-    );
-    const receipt = await tx.wait();
-    lastHash = tx.hash;
-    lastBlockNumber = receipt.blockNumber;
+      // Step 4: Check balance before batch
+      onStep?.(`Checking balance for batch ${batchNum}/${totalBatches}...`);
+      const balanceCheck = await SimulationService.checkBalance(wallet, costBreakdown.grandTotal);
+
+      if (!balanceCheck.hasEnough) {
+        const error = ErrorHandlingService.parseSimulationError(
+          { success: false, error: "Insufficient funds", errorType: "INSUFFICIENT_FUNDS" },
+          balanceCheck.balance,
+          costBreakdown.grandTotal
+        );
+        throw new Error(
+          `Batch ${batchNum}/${totalBatches} failed: ${error.message} ${error.solution}`
+        );
+      }
+
+      // Step 5: Simulate transaction before sending
+      onStep?.(`Simulating batch ${batchNum}/${totalBatches}...`);
+      const simulation = await SimulationService.simulateCreateTriples(
+        wallet,
+        subjectIds,
+        predicateIds,
+        objectIds,
+        assets,
+        costBreakdown.grandTotal
+      );
+
+      if (!simulation.success) {
+        const error = ErrorHandlingService.parseSimulationError(
+          simulation,
+          balanceCheck.balance,
+          costBreakdown.grandTotal
+        );
+        throw new Error(
+          `Batch ${batchNum}/${totalBatches} simulation failed: ${error.title} - ${error.message}\n${error.solution}`
+        );
+      }
+
+      // Step 6: Simulation passed, send the real transaction
+      onStep?.(`Publishing batch ${batchNum}/${totalBatches} (${batch.length} triples)...`);
+
+      const tx = await proxy.createTriples(
+        address,
+        subjectIds,
+        predicateIds,
+        objectIds,
+        assets,
+        CHAIN_CONFIG.CURVE_ID,
+        { value: costBreakdown.grandTotal }
+      );
+
+      onStep?.(`Waiting for batch ${batchNum}/${totalBatches} confirmation...`);
+      const receipt = await tx.wait();
+
+      // Step 7: Verify transaction succeeded
+      if (receipt.status !== 1) {
+        throw new Error(`Batch ${batchNum}/${totalBatches} transaction failed with status ${receipt.status}`);
+      }
+
+      lastHash = tx.hash;
+      lastBlockNumber = receipt.blockNumber;
+      successfulBatches++;
+
+    } catch (error) {
+      // Parse and rethrow with batch context
+      const batchError = ErrorHandlingService.parseBatchError(error, {
+        batchNumber: batchNum,
+        totalBatches,
+        successfulBatches,
+      });
+      throw new Error(
+        `${batchError.title}: ${batchError.message}\n${batchError.solution}\n\nTechnical: ${batchError.technicalDetails || "N/A"}`
+      );
+    }
   }
 
   return { hash: lastHash, blockNumber: lastBlockNumber };
@@ -407,6 +516,12 @@ export async function createProfileTriples(
  * Each atom gets `depositPerAtom` deposited into its vault.
  * The user receives shares proportional to their deposit.
  * Used for interests (tracks) and votes (topics) — no triple created.
+ *
+ * NOW WITH SIMULATION & VALIDATION:
+ * - Verifies all terms exist on-chain
+ * - Checks balance before each batch
+ * - Simulates transaction before sending
+ * - Provides detailed error messages on failure
  */
 const DEPOSIT_BATCH_SIZE = 50;
 
@@ -418,48 +533,143 @@ export async function depositOnAtoms(
 ): Promise<{ hash: string; blockNumber: number }> {
   if (termIds.length === 0) throw new Error("No terms to deposit on.");
 
+  // Dynamic imports
+  const { SimulationService } = await import("./SimulationService");
+  const { FeeCalculationService } = await import("./FeeCalculationService");
+  const { ErrorHandlingService } = await import("./ErrorHandlingService");
+
   const deposit = depositPerAtom ?? BigInt(DEFAULT_DEPOSIT_PER_TRIPLE);
 
-  // Approve proxy on MultiVault (required before any proxy operation)
+  // Step 1: Verify all terms exist on-chain
+  onStep?.("Verifying terms on-chain...");
+  const missingTerms = await SimulationService.verifyAtomsExist(wallet.multiVault, termIds);
+
+  if (missingTerms.length > 0) {
+    throw new Error(
+      `Cannot deposit: ${missingTerms.length} term(s) do not exist on-chain. ` +
+      `Missing: ${missingTerms.slice(0, 3).join(", ")}${missingTerms.length > 3 ? "..." : ""}`
+    );
+  }
+
+  // Step 2: Approve proxy on MultiVault (required before any proxy operation)
   onStep?.("Approving proxy...");
   try {
     await approveProxy(wallet.multiVault);
-  } catch { /* already approved */ }
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Only ignore if already approved - re-throw user rejections
+    if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+      throw new Error('You must approve the proxy to continue. Please accept the approval request in your wallet.');
+    }
+    // Log other errors but continue (likely already approved)
+    if (!msg.toLowerCase().includes('already approved') && !msg.toLowerCase().includes('already set')) {
+      console.warn('[Intuition] Proxy approval warning:', msg);
+    }
+  }
 
   let lastHash = "";
   let lastBlockNumber = 0;
   const totalBatches = Math.ceil(termIds.length / DEPOSIT_BATCH_SIZE);
+  let successfulBatches = 0;
 
   for (let i = 0; i < termIds.length; i += DEPOSIT_BATCH_SIZE) {
     const batch = termIds.slice(i, i + DEPOSIT_BATCH_SIZE);
     const batchNum = Math.floor(i / DEPOSIT_BATCH_SIZE) + 1;
-    if (totalBatches > 1) {
-      onStep?.(`Depositing batch ${batchNum}/${totalBatches} (${batch.length} terms)...`);
-    } else {
-      onStep?.(`Depositing on ${batch.length} term${batch.length > 1 ? "s" : ""}...`);
-    }
 
     const assets = batch.map(() => deposit);
-    const totalDeposit = deposit * BigInt(batch.length);
-    const fee: bigint = await wallet.proxy.calculateDepositFee(
-      BigInt(batch.length), totalDeposit
-    );
-    const curveIds = batch.map(() => CHAIN_CONFIG.CURVE_ID);
-    const minShares = batch.map(() => 0n);
 
-    const tx = await wallet.proxy.depositBatch(
-      wallet.address,
-      batch,
-      curveIds,
-      assets,
-      minShares,
-      { value: totalDeposit + fee }
-    );
+    try {
+      // Step 3: Calculate cost for this batch
+      if (totalBatches > 1) {
+        onStep?.(`Calculating cost for batch ${batchNum}/${totalBatches}...`);
+      }
+      const costBreakdown = await FeeCalculationService.calculateDepositBatchCost(
+        wallet,
+        batch.length,
+        deposit
+      );
 
-    onStep?.("Waiting for confirmation...");
-    const receipt = await tx.wait();
-    lastHash = tx.hash;
-    lastBlockNumber = receipt.blockNumber;
+      // Step 4: Check balance before batch
+      if (totalBatches > 1) {
+        onStep?.(`Checking balance for batch ${batchNum}/${totalBatches}...`);
+      }
+      const balanceCheck = await SimulationService.checkBalance(wallet, costBreakdown.grandTotal);
+
+      if (!balanceCheck.hasEnough) {
+        const error = ErrorHandlingService.parseSimulationError(
+          { success: false, error: "Insufficient funds", errorType: "INSUFFICIENT_FUNDS" },
+          balanceCheck.balance,
+          costBreakdown.grandTotal
+        );
+        throw new Error(
+          `Batch ${batchNum}/${totalBatches} failed: ${error.message} ${error.solution}`
+        );
+      }
+
+      // Step 5: Simulate transaction before sending
+      if (totalBatches > 1) {
+        onStep?.(`Simulating batch ${batchNum}/${totalBatches}...`);
+      }
+      const simulation = await SimulationService.simulateDepositBatch(
+        wallet,
+        batch,
+        assets,
+        costBreakdown.grandTotal
+      );
+
+      if (!simulation.success) {
+        const error = ErrorHandlingService.parseSimulationError(
+          simulation,
+          balanceCheck.balance,
+          costBreakdown.grandTotal
+        );
+        throw new Error(
+          `Batch ${batchNum}/${totalBatches} simulation failed: ${error.title} - ${error.message}\n${error.solution}`
+        );
+      }
+
+      // Step 6: Simulation passed, send the real transaction
+      if (totalBatches > 1) {
+        onStep?.(`Depositing batch ${batchNum}/${totalBatches} (${batch.length} terms)...`);
+      } else {
+        onStep?.(`Depositing on ${batch.length} term${batch.length > 1 ? "s" : ""}...`);
+      }
+
+      const curveIds = batch.map(() => CHAIN_CONFIG.CURVE_ID);
+      const minShares = batch.map(() => 0n);
+
+      const tx = await wallet.proxy.depositBatch(
+        wallet.address,
+        batch,
+        curveIds,
+        assets,
+        minShares,
+        { value: costBreakdown.grandTotal }
+      );
+
+      onStep?.("Waiting for confirmation...");
+      const receipt = await tx.wait();
+
+      // Step 7: Verify transaction succeeded
+      if (receipt.status !== 1) {
+        throw new Error(`Batch ${batchNum}/${totalBatches} transaction failed with status ${receipt.status}`);
+      }
+
+      lastHash = tx.hash;
+      lastBlockNumber = receipt.blockNumber;
+      successfulBatches++;
+
+    } catch (error) {
+      // Parse and rethrow with batch context
+      const batchError = ErrorHandlingService.parseBatchError(error, {
+        batchNumber: batchNum,
+        totalBatches,
+        successfulBatches,
+      });
+      throw new Error(
+        `${batchError.title}: ${batchError.message}\n${batchError.solution}\n\nTechnical: ${batchError.technicalDetails || "N/A"}`
+      );
+    }
   }
 
   return { hash: lastHash, blockNumber: lastBlockNumber };
@@ -542,7 +752,19 @@ export async function createFollowTriple(
   }
 
   onStep?.("Approving proxy...");
-  try { await approveProxy(wallet.multiVault); } catch { /* already approved */ }
+  try {
+    await approveProxy(wallet.multiVault);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Only ignore if already approved - re-throw user rejections
+    if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+      throw new Error('You must approve the proxy to continue. Please accept the approval request in your wallet.');
+    }
+    // Log other errors but continue (likely already approved)
+    if (!msg.toLowerCase().includes('already approved') && !msg.toLowerCase().includes('already set')) {
+      console.warn('[Intuition] Proxy approval warning:', msg);
+    }
+  }
 
   const tripleCost = await wallet.multiVault.getTripleCost();
   const assets = [deposit];

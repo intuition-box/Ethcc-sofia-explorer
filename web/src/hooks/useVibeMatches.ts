@@ -1,6 +1,12 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { GQL_URL } from "../config/constants";
-import { GraphQLClient } from "@ethcc/graphql";
+import {
+  GraphQLClient,
+  GET_VIBE_MATCH_POSITIONS,
+  GET_VIBE_MATCH_SESSIONS,
+  type GetVibeMatchPositionsQuery,
+  type GetVibeMatchSessionsQuery,
+} from "@ethcc/graphql";
 import { TRACK_ATOM_IDS, SESSION_ATOM_IDS, PREDICATES } from "../services/intuition";
 import topicGraph from "../../../bdd/web3_topics_graph.json";
 
@@ -27,7 +33,7 @@ const POLL_INTERVAL = 30_000; // 30s
 
 /**
  * Find users who share interests, votes, and sessions.
- * Uses 2 flat queries (positions + triples) instead of N aliased queries.
+ * Uses type-safe codegen queries instead of inline strings.
  * Polls every 30s for real-time discovery.
  */
 export function useVibeMatches(
@@ -40,19 +46,32 @@ export function useVibeMatches(
   const [matches, setMatches] = useState<VibeMatch[]>([]);
   const [loading, setLoading] = useState(false);
   const mountedRef = useRef(true);
+  const loadingStartRef = useRef<number | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     mountedRef.current = true;
     return () => { mountedRef.current = false; };
   }, []);
 
-  useEffect(() => {
-    const allTrackIds = Object.values(TRACK_ATOM_IDS).filter(Boolean);
-    const voteAtomIds = (votedTopicIds ?? []).map((t) => TOPIC_ATOM_IDS[t]).filter(Boolean);
-    const sessAtomIds = sessionIds.map((id) => SESSION_ATOM_IDS[id]).filter(Boolean);
-    // Query ALL track atoms so we know each user's full track set (for Jaccard similarity)
-    const allAtomIds = [...allTrackIds, ...voteAtomIds];
+  // Memoize atom IDs to avoid recalculation
+  const allTrackIds = useMemo(() => Object.values(TRACK_ATOM_IDS).filter(Boolean), []);
+  const voteAtomIds = useMemo(
+    () => (votedTopicIds ?? []).map((t) => TOPIC_ATOM_IDS[t]).filter(Boolean),
+    [votedTopicIds]
+  );
+  const sessAtomIds = useMemo(
+    () => sessionIds.map((id) => SESSION_ATOM_IDS[id]).filter(Boolean),
+    [sessionIds]
+  );
 
+  // Memoize combined atom list
+  const allAtomIds = useMemo(
+    () => [...allTrackIds, ...voteAtomIds],
+    [allTrackIds, voteAtomIds]
+  );
+
+  useEffect(() => {
     if (allAtomIds.length === 0 && sessAtomIds.length === 0) return;
     if (!walletAddress) return;
 
@@ -62,34 +81,33 @@ export function useVibeMatches(
 
     async function fetchMatches() {
       if (!mountedRef.current) return;
+
+      // Cancel previous request if still running
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
       setLoading(true);
+      setMatches([]); // Clear matches when starting a new fetch
+      loadingStartRef.current = Date.now();
 
       try {
-        // Query 1: All positions on interest + vote atoms in ONE query
+        // Query 1: All positions on interest + vote atoms using codegen query
         const positionsData = allAtomIds.length > 0
-          ? await client.request<{ positions: { account_id: string; term_id: string; shares: string }[] }>(
-              `query($ids: [String!]!) {
-                positions(where: { term_id: { _in: $ids }, shares: { _gt: "0" } }, limit: 500) {
-                  account_id term_id shares
-                }
-              }`,
-              { ids: allAtomIds }
+          ? await client.request<GetVibeMatchPositionsQuery>(
+              GET_VIBE_MATCH_POSITIONS,
+              { atomIds: allAtomIds }
             )
           : { positions: [] };
 
-        // Query 2: All attending triples for user's sessions in ONE query
+        // Query 2: All attending triples for user's sessions using codegen query
         const triplesData = sessAtomIds.length > 0
-          ? await client.request<{ triples: { subject: { term_id: string; label: string }; object: { term_id: string } }[] }>(
-              `query($predId: String!, $objIds: [String!]!) {
-                triples(where: {
-                  predicate: { term_id: { _eq: $predId } }
-                  object: { term_id: { _in: $objIds } }
-                }, limit: 500) {
-                  subject { term_id label }
-                  object { term_id }
-                }
-              }`,
-              { predId: PREDICATES["attending"], objIds: sessAtomIds }
+          ? await client.request<GetVibeMatchSessionsQuery>(
+              GET_VIBE_MATCH_SESSIONS,
+              { predicateId: PREDICATES["attending"], sessionAtomIds: sessAtomIds }
             )
           : { triples: [] };
 
@@ -120,6 +138,7 @@ export function useVibeMatches(
 
         // Process triples → sessions (use label as key, not term_id)
         for (const triple of triplesData.triples) {
+          if (!triple.object || !triple.subject) continue;
           const sessId = ATOM_TO_SESSION.get(triple.object.term_id);
           if (sessId && triple.subject.label) {
             const u = ensureUser(triple.subject.label, triple.subject.label);
@@ -166,9 +185,31 @@ export function useVibeMatches(
         }
 
         result.sort((a, b) => b.matchScore - a.matchScore);
-        if (mountedRef.current) setMatches(result);
+
+        // Check if this request was aborted
+        if (controller.signal.aborted) {
+          return;
+        }
+
+        // Wait for minimum delay, then update both matches and loading state together
+        if (mountedRef.current && loadingStartRef.current) {
+          const elapsed = Date.now() - loadingStartRef.current;
+          const minDelay = 1000; // 1 second minimum
+          if (elapsed < minDelay) {
+            setTimeout(() => {
+              if (mountedRef.current && !controller.signal.aborted) {
+                setMatches(result);
+                setLoading(false);
+                abortControllerRef.current = null;
+              }
+            }, minDelay - elapsed);
+          } else {
+            setMatches(result);
+            setLoading(false);
+            abortControllerRef.current = null;
+          }
+        }
       } catch { /* ignore */ }
-      finally { if (mountedRef.current) setLoading(false); }
     }
 
     fetchMatches();
@@ -176,15 +217,15 @@ export function useVibeMatches(
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") fetchMatches();
     }, POLL_INTERVAL);
-    return () => clearInterval(interval);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    [...topics].sort().join(","),
-    sessionIds.sort().join(","),
-    (votedTopicIds ?? []).sort().join(","),
-    walletAddress,
-    refreshKey,
-  ]);
+    return () => {
+      clearInterval(interval);
+      // Cancel ongoing fetch when effect cleans up
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, [topics, sessionIds, votedTopicIds, walletAddress, refreshKey, allAtomIds, sessAtomIds]);
 
   return { matches, loading };
 }

@@ -69,3 +69,158 @@ query GetSessionAttendees($predicateId: String!, $sessionAtomId: String!) {
     }
   }
 }`;
+
+// ─── Trending Queries ─────────────────────────────────────
+
+export const GET_TRENDING_TOPICS = /* GraphQL */ `
+query GetTrendingTopics($predicateId: String!, $atomIds: [String!]!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $atomIds } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+    term {
+      vaults {
+        total_assets
+        position_count
+      }
+    }
+    counter_term {
+      vaults {
+        total_assets
+        position_count
+      }
+    }
+  }
+}`;
+
+export const GET_TOPIC_VOTERS = /* GraphQL */ `
+query GetTopicVoters($predicateId: String!, $atomId: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _eq: $atomId } }
+    }
+  ) {
+    subject {
+      label
+    }
+    positions(order_by: { shares: desc }) {
+      account {
+        id
+        label
+      }
+      shares
+    }
+  }
+}`;
+
+// Note: Event queries removed - schema doesn't support vaults.events field
+// trendingService.ts will keep inline queries for events if needed
+
+export const GET_USER_TOPICS = /* GraphQL */ `
+query GetUserTopics($predicateId: String!, $userAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      subject: { label: { _ilike: $userAddress } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+  }
+}`;
+
+export const GET_USERS_VOTING_ON_TOPICS = /* GraphQL */ `
+query GetUsersVotingOnTopics($predicateId: String!, $topicIds: [String!]!, $excludeAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $topicIds } }
+      subject: { label: { _nilike: $excludeAddress } }
+    }
+  ) {
+    subject {
+      label
+    }
+    object {
+      term_id
+      label
+    }
+  }
+}`;
+
+// ─── Interest Queries ─────────────────────────────────────
+
+export const GET_POSITIONS_BY_ATOMS = /* GraphQL */ `
+query GetPositionsByAtoms($atomIds: [String!]!) {
+  positions(
+    where: {
+      term_id: { _in: $atomIds }
+      shares: { _gt: "0" }
+    }
+  ) {
+    term_id
+    account_id
+    shares
+  }
+}`;
+
+// ─── Vibe Match Queries ───────────────────────────────────
+
+export const GET_VIBE_MATCH_POSITIONS = /* GraphQL */ `
+query GetVibeMatchPositions($atomIds: [String!]!) {
+  positions(
+    where: {
+      term_id: { _in: $atomIds }
+      shares: { _gt: "0" }
+    }
+    limit: 500
+  ) {
+    account_id
+    term_id
+    shares
+  }
+}`;
+
+export const GET_VIBE_MATCH_SESSIONS = /* GraphQL */ `
+query GetVibeMatchSessions($predicateId: String!, $sessionAtomIds: [String!]!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      object: { term_id: { _in: $sessionAtomIds } }
+    }
+    limit: 500
+  ) {
+    subject {
+      term_id
+      label
+    }
+    object {
+      term_id
+    }
+  }
+}`;
+
+export const GET_USER_ATTENDED_SESSIONS = /* GraphQL */ `
+query GetUserAttendedSessions($predicateId: String!, $userAddress: String!) {
+  triples(
+    where: {
+      predicate: { term_id: { _eq: $predicateId } }
+      subject: { label: { _ilike: $userAddress } }
+    }
+  ) {
+    object {
+      term_id
+      label
+    }
+    created_at
+  }
+}`;

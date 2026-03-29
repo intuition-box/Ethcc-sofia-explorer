@@ -5,6 +5,7 @@ import { explorerTxUrl } from "../../config/constants";
 import styles from "./Step7Success.module.css";
 import shared from "../../styles/shared.module.css";
 import type { useVibeMatches } from "../../hooks/useVibeMatches";
+import { SkeletonVibeCard } from "../ui/Skeleton";
 
 interface Props {
   selectedTracks: Set<string>;
@@ -51,7 +52,12 @@ export function Step7Success({
         {/* Vibe matches — real data */}
         {vibeLoading && (
           <div className={styles.section}>
-            <p className={styles.sectionTitle}>Searching for your vibe tribe...</p>
+            <p className={styles.sectionTitle}>Finding your vibe tribe...</p>
+            <div className={styles.vibeList}>
+              {[1, 2, 3, 4].map((i) => (
+                <SkeletonVibeCard key={i} />
+              ))}
+            </div>
           </div>
         )}
 

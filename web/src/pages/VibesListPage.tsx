@@ -1,10 +1,10 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useState, useEffect, type CSSProperties } from "react";
 import { STORAGE_KEYS } from "../config/constants";
 import { useNavigate } from "react-router-dom";
 import { C, R, glassSurface, FONT, getTrackStyle, avatarColor } from "../config/theme";
 import { Ic } from "../components/ui/Icons";
-import { StorageService } from "../services/StorageService";
 import { useVibeMatches } from "../hooks/useVibeMatches";
+import { SkeletonCircle, Skeleton } from "../components/ui/Skeleton";
 
 // ─── Styles ──────────────────────────────────────────
 
@@ -92,7 +92,8 @@ export default function VibesListPage() {
   const navigate = useNavigate();
 
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
-  const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
+  const [profileSynced, setProfileSynced] = useState(false);
   const publishedSessionIds = useMemo<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
     catch { return []; }
@@ -102,8 +103,33 @@ export default function VibesListPage() {
     catch { return []; }
   }, []);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Sync on-chain interests when wallet connects
+  useEffect(() => {
+    if (walletAddress) {
+      setProfileSynced(false);
+      import("../services/profileSync").then(({ syncProfileFromChain }) => {
+        syncProfileFromChain(walletAddress).then(result => {
+          setSavedTopics(new Set(result.interests));
+          setProfileSynced(true);
+        }).catch(err => {
+          console.error("Failed to sync:", err);
+          setProfileSynced(true);
+        });
+      });
+    } else {
+      setProfileSynced(false);
+    }
+  }, [walletAddress]);
+  const emptyTopics = useMemo(() => new Set<string>(), []);
+  const emptySessions = useMemo(() => [], []);
+
   const { matches: realMatches, loading } = useVibeMatches(
-    savedTopics, publishedSessionIds, walletAddress, votedTopicIds, refreshKey
+    profileSynced ? savedTopics : emptyTopics,
+    profileSynced ? publishedSessionIds : emptySessions,
+    walletAddress,
+    votedTopicIds,
+    refreshKey
   );
 
   const totalPossible = savedTopics.size + publishedSessionIds.length + votedTopicIds.length;
@@ -140,7 +166,9 @@ export default function VibesListPage() {
           </div>
           <div style={{ fontSize: 13, color: C.textSecondary, lineHeight: 1.5 }}>
             Connect with attendees who share your interests and sessions.
-            {totalPossible > 0
+            {!profileSynced
+              ? " Loading your profile..."
+              : totalPossible > 0
               ? ` You have ${savedTopics.size} interests and ${publishedSessionIds.length} sessions published.`
               : " Select interests and sessions to discover matches."}
           </div>
@@ -195,11 +223,30 @@ export default function VibesListPage() {
           </>
         )}
 
-        {/* Loading indicator */}
-        {loading && (
-          <div style={{ textAlign: "center", padding: 24, color: C.textTertiary, fontSize: 13 }}>
-            Searching for on-chain connections...
-          </div>
+        {/* Loading skeleton */}
+        {loading && realMatches.length === 0 && (
+          <>
+            <div style={sectionLabel}>Loading Connections...</div>
+            {[1, 2, 3].map((i) => (
+              <div key={i} style={userCard}>
+                <div style={cardHeader}>
+                  <SkeletonCircle size={44} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <Skeleton width="60%" height={15} />
+                    <div style={{ marginTop: 6 }}>
+                      <Skeleton width="40%" height={11} />
+                    </div>
+                  </div>
+                  <Skeleton width={60} height={18} />
+                </div>
+                <Skeleton width="100%" height={4} style={{ marginBottom: 10 }} />
+                <div style={{ display: "flex", gap: 4 }}>
+                  <Skeleton width={80} height={24} />
+                  <Skeleton width={100} height={24} />
+                </div>
+              </div>
+            ))}
+          </>
         )}
 
         {/* No matches message */}

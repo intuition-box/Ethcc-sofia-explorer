@@ -5,7 +5,6 @@ import { sessions, trackNames, ratingsGraph } from "../data";
 import { allTopics, categories } from "../data/topics";
 import { Ic } from "../components/ui/Icons";
 import { useCart } from "../hooks/useCart";
-import { StorageService } from "../services/StorageService";
 import { CHAIN_CONFIG, STORAGE_KEYS, DEFAULT_DEPOSIT_PER_TRIPLE } from "../config/constants";
 import { useWalletConnection } from "../hooks/useWalletConnection";
 import { useEmbeddedWallet } from "../contexts/EmbeddedWalletContext";
@@ -13,6 +12,7 @@ import { depositOnAtoms, ensureUserAtom, buildProfileTriples, createProfileTripl
 import { avatarColor } from "../config/theme";
 import { resolveTopicAtomIds } from "../services/voteService";
 import { formatTxError } from "../utils/txErrors";
+import { PublishSuccessSheet } from "../components/cart/PublishSuccessSheet";
 import {
   scrollContent,
   fluidContent,
@@ -37,7 +37,7 @@ const ICON_EMOJI: Record<string, string> = {
 
 function fmtDate(iso: string): string {
   const d = new Date(iso + "T00:00:00");
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  return d.toLocaleDateString("en-US", { weekday: "short", day: "numeric" });
 }
 
 // ─── Styles ─────────────────────────────────────────
@@ -83,11 +83,36 @@ const emptyState: CSSProperties = {
   textAlign: "center" as const, padding: "32px 20px", color: C.textTertiary, fontSize: 13,
 };
 
-const topSpacer: CSSProperties = { height: 12, flexShrink: 0 };
+const pageHeader: CSSProperties = {
+  display: "flex", alignItems: "center", gap: 12,
+  padding: "12px 20px", borderBottom: `1px solid ${C.border}`,
+  position: "sticky" as const, top: 0, background: C.background,
+  zIndex: 10, flexShrink: 0,
+};
+
+const backBtn: CSSProperties = {
+  width: 36, height: 36, borderRadius: R.md,
+  background: C.surfaceGray, border: "none",
+  color: C.textPrimary, fontSize: 18,
+  cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+  fontFamily: FONT, flexShrink: 0,
+};
+
+const pageTitle: CSSProperties = {
+  fontSize: 18, fontWeight: 700, color: C.textPrimary,
+  flex: 1, margin: 0,
+};
 
 const emptyIcon: CSSProperties = { fontSize: 40, marginBottom: 12 };
 
 const emptyTitle: CSSProperties = { fontSize: 16, fontWeight: 600, color: C.textPrimary, marginBottom: 4 };
+
+const emptyBackBtn: CSSProperties = {
+  ...btnPill, padding: "10px 20px", marginTop: 16,
+  background: C.surfaceGray, color: C.textPrimary,
+  fontSize: 14, fontWeight: 600, cursor: "pointer",
+  border: "none", fontFamily: FONT,
+};
 
 const sectionEmoji: CSSProperties = { fontSize: 16 };
 
@@ -210,8 +235,7 @@ const dismissBtn: CSSProperties = {
 // ─── Component ──────────────────────────────────────
 export default function CartPage() {
   const navigate = useNavigate();
-  const { cart, toggleCart, clearCart, removeFromCart } = useCart();
-  const [pendingTopics, setPendingTopics] = useState<string[]>([]);
+  const { cart, toggleCart, clearCart } = useCart();
   const { wallet: appKitWallet, isConnected: appKitConnected, connect: openWalletModal } = useWalletConnection();
   const embeddedCtx = useEmbeddedWallet();
   const wallet = appKitWallet ?? embeddedCtx.wallet;
@@ -223,19 +247,8 @@ export default function CartPage() {
   const [failedStep, setFailedStep] = useState("");
   const [rawError, setRawError] = useState("");
   const [showRawError, setShowRawError] = useState(false);
-
-  // Reload pending topics when page gets focus (coming back from other pages)
-  useEffect(() => {
-    const load = () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS);
-        setPendingTopics(raw ? JSON.parse(raw).filter((t: string) => trackNames.includes(t)) : []);
-      } catch { setPendingTopics([]); }
-    };
-    load();
-    window.addEventListener("focus", load);
-    return () => window.removeEventListener("focus", load);
-  }, []);
+  const [publishedTxHash, setPublishedTxHash] = useState("");
+  const [userAtomId, setUserAtomId] = useState("");
 
   // Category lookup
   const categoryMap = useMemo(() => {
@@ -267,7 +280,27 @@ export default function CartPage() {
     return result;
   }, [cart, topicMap]);
 
-  const topicList = pendingTopics;
+  // Derived interests: extract unique tracks from sessions + explicit interests from cart
+  const derivedInterests = useMemo(() => {
+    const tracks = new Set<string>();
+
+    // Auto-derived from sessions
+    cartSessions.forEach(session => {
+      if (session.track) tracks.add(session.track);
+    });
+
+    // Explicit interests from cart (prefixed with "interest:")
+    cart.forEach((id) => {
+      if (id.startsWith("interest:")) {
+        const track = id.slice(9); // Remove "interest:" prefix
+        if (trackNames.includes(track)) tracks.add(track);
+      }
+    });
+
+    return Array.from(tracks);
+  }, [cartSessions, cart]);
+
+  const topicList = derivedInterests;
 
   // Pending follows (from useFollow)
   const cartFollows = useMemo(() => {
@@ -408,12 +441,23 @@ export default function CartPage() {
     if (!wallet || publishing) return;
     clearError();
     setPublishing(true);
+    let lastTxHash = "";
     try {
+      // Get user atom ID (might already exist)
+      const nickname = localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? undefined;
+      const atomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers, nickname);
+      setUserAtomId(atomId);
+
       // 1. Deposit on track atoms (interests)
       const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
       if (trackAtomIds.length > 0) {
         setPublishStatus(`Depositing on ${trackAtomIds.length} interests...`);
-        await depositOnAtoms(wallet, trackAtomIds);
+        const result = await depositOnAtoms(wallet, trackAtomIds);
+        if (typeof result === 'string') {
+          lastTxHash = result;
+        } else if (result && 'hash' in result) {
+          lastTxHash = result.hash;
+        }
       }
 
       // 2. Deposit on topic atoms (votes)
@@ -421,7 +465,12 @@ export default function CartPage() {
         const { resolved } = resolveTopicAtomIds(cartTopics.map((t) => t.id));
         if (resolved.length > 0) {
           setPublishStatus(`Depositing on ${resolved.length} topics...`);
-          await depositOnAtoms(wallet, resolved.map((r) => r.atomId));
+          const result = await depositOnAtoms(wallet, resolved.map((r) => r.atomId));
+          if (typeof result === 'string') {
+            lastTxHash = result;
+          } else if (result && 'hash' in result) {
+            lastTxHash = result.hash;
+          }
         }
         const pubVotes: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES) ?? "[]");
         for (const t of cartTopics) {
@@ -433,11 +482,19 @@ export default function CartPage() {
       // 3. Create attending triples (sessions)
       if (cartSessions.length > 0) {
         setPublishStatus(`Creating ${cartSessions.length} session triples...`);
-        const nickname = localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? undefined;
-        const userAtomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers, nickname);
-        const triples = buildProfileTriples(userAtomId, [], cartSessions.map((s) => s.id));
+        const triples = buildProfileTriples(atomId, [], cartSessions.map((s) => s.id));
+        console.log('[CartPage] Session triples to create:', triples.length, triples);
         if (triples.length > 0) {
-          await createProfileTriples(wallet.multiVault, wallet.proxy, wallet.address, triples);
+          const result = await createProfileTriples(wallet, triples, undefined, (step) => {
+            console.log('[CartPage] Step:', step);
+            setPublishStatus(step);
+          });
+          console.log('[CartPage] Session triples created!', result);
+          if (typeof result === 'string') {
+            lastTxHash = result;
+          } else if (result && 'hash' in result) {
+            lastTxHash = result.hash;
+          }
         }
         const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
         for (const s of cartSessions) {
@@ -475,21 +532,11 @@ export default function CartPage() {
         }
       }
 
-      // Move pending topics to published topics
-      try {
-        const pending: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS) ?? "[]");
-        if (pending.length > 0) {
-          const existingTopics = StorageService.loadTopics();
-          for (const t of pending) existingTopics.add(t);
-          StorageService.saveTopics(existingTopics);
-          localStorage.removeItem(STORAGE_KEYS.PENDING_TOPICS);
-        }
-      } catch { /* ignore */ }
-
+      // Clear cart and temporary storage
       clearCart();
-      setPendingTopics([]);
       localStorage.removeItem(STORAGE_KEYS.VOTES);
       localStorage.removeItem(STORAGE_KEYS.RATINGS_PENDING);
+      setPublishedTxHash(lastTxHash);
       setPublishDone(true);
       setPublishStatus("");
     } catch (e: unknown) {
@@ -504,7 +551,13 @@ export default function CartPage() {
 
   return (
     <div style={page}>
-      <div style={topSpacer} />
+      {/* Header with back button */}
+      <div style={pageHeader}>
+        <button style={backBtn} onClick={() => navigate(-1)}>
+          <Ic.Back s={20} c={C.textPrimary} />
+        </button>
+        <h1 style={pageTitle}>Cart</h1>
+      </div>
 
       <div style={scrollContent}>
 
@@ -517,12 +570,12 @@ export default function CartPage() {
             </div>
             {failedStep && (
               <span style={errorStepBadge}>
-                Étape : {failedStep}
+                Step: {failedStep}
               </span>
             )}
             <div style={errorMessage}>{publishError}</div>
             <button style={rawToggle} onClick={() => setShowRawError((v) => !v)}>
-              {showRawError ? "▲ Masquer" : "▼ Voir"} l'erreur brute
+              {showRawError ? "▲ Hide" : "▼ Show"} raw error
             </button>
             {showRawError && (
               <div style={rawErrorBox}>{rawError}</div>
@@ -530,11 +583,11 @@ export default function CartPage() {
             <div style={errorActions}>
               {isInsufficientFunds && (
                 <button style={sendTrustBtn} onClick={() => navigate("/send")}>
-                  Envoyer du TRUST
+                  Add TRUST
                 </button>
               )}
               <button style={retryBtn} onClick={handlePublish}>
-                ↺ Réessayer
+                ↺ Retry
               </button>
             </div>
           </div>
@@ -545,6 +598,9 @@ export default function CartPage() {
             <div style={emptyIcon}>🛒</div>
             <p style={emptyTitle}>Cart is empty</p>
             <p>Select interests, sessions, or vote on topics to fill your cart.</p>
+            <button style={emptyBackBtn} onClick={() => navigate(-1)}>
+              ← Go Back
+            </button>
           </div>
         )}
 
@@ -555,19 +611,15 @@ export default function CartPage() {
               <span style={sectionEmoji}>💜</span>
               Interests ({topicList.length})
             </div>
+            <p style={{ fontSize: 12, color: C.textSecondary, marginBottom: 12, marginTop: -4 }}>
+              Auto-detected from your session selections
+            </p>
             <div style={interestWrap}>
               {topicList.map((t) => {
                 const ts = getTrackStyle(t);
                 return (
-                  <span key={t} style={interestPill(ts.color)}
-                    onClick={() => {
-                      const next = pendingTopics.filter((x) => x !== t);
-                      setPendingTopics(next);
-                      localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify(next));
-                      removeFromCart(t);
-                    }}
-                  >
-                    {ts.icon} {t} <Ic.X s={10} c="#fff" />
+                  <span key={t} style={interestPill(ts.color)}>
+                    {ts.icon} {t}
                   </span>
                 );
               })}
@@ -861,6 +913,27 @@ export default function CartPage() {
             </button>
           )}
         </div>
+      )}
+
+      {/* Success Modal */}
+      {publishDone && (
+        <PublishSuccessSheet
+          interestCount={topicList.length}
+          sessionCount={cartSessions.length}
+          voteCount={cartTopics.length}
+          ratingCount={cartRatings.length}
+          followCount={cartFollows.length}
+          txHash={publishedTxHash}
+          walletAddress={wallet?.address ?? ""}
+          userAtomId={userAtomId}
+          topics={new Set(topicList)}
+          sessionIds={cartSessions.map((s) => s.id)}
+          totalCost={costBreakdown ? `${(Number(costBreakdown.total) / 1e18).toFixed(4)} TRUST` : undefined}
+          depositsAmount={costBreakdown ? `${(Number(costBreakdown.deposits) / 1e18).toFixed(4)} TRUST` : undefined}
+          multiVaultFees={costBreakdown ? `${(Number(costBreakdown.mvFees) / 1e18).toFixed(4)} TRUST` : undefined}
+          sofiaFees={costBreakdown ? `${(Number(costBreakdown.sofiaFees) / 1e18).toFixed(4)} TRUST` : undefined}
+          onClose={() => setPublishDone(false)}
+        />
       )}
     </div>
   );

@@ -1,0 +1,500 @@
+================================================================================
+BUSINESS LOGIC FLOW ANALYSIS - THOROUGH POST-REFACTORING REVIEW
+================================================================================
+
+ANALYSIS DATE: 2026-03-29
+REPOSITORY: /Users/maximesaint-joannis/VScode/Etcc-manager/Ethcc-sofia-explorer
+SCOPE: Very Thorough - All code flows traced and verified
+
+================================================================================
+EXECUTIVE SUMMARY
+================================================================================
+
+The refactoring introduced 7 significant issues:
+- 5 CRITICAL/HIGH severity (app crashes or silent data loss)
+- 2 MEDIUM severity (features partially broken or design inconsistency)
+- App is currently BROKEN on most pages that access interests
+
+KEY BREAKING CHANGES:
+1. StorageService.loadTopics() and saveTopics() methods called but don't exist
+2. STORAGE_KEYS.PENDING_TOPICS referenced but not defined
+3. Interest storage system fragmented into 3 different approaches
+4. Profile sync deliberately omits interest persistence
+5. Incomplete refactoring left orphaned code paths
+
+================================================================================
+1. CRITICAL: Missing StorageService Methods
+================================================================================
+
+ISSUE: Methods called but not implemented
+SEVERITY: CRITICAL - TypeError at runtime
+
+EVIDENCE:
+  File: /web/src/services/StorageService.ts (25 lines total)
+  Current methods: loadCart(), saveCart() only
+  Missing methods: loadTopics(), saveTopics()
+
+CALLERS (7 files):
+  1. HomePage.tsx:504         - const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  2. OnboardingPage.tsx:26    - StorageService.loadTopics().size > 0
+  3. OnboardingPage.tsx:74    - StorageService.saveTopics(selectedTracks);
+  4. OnboardingPage.tsx:127   - StorageService.saveTopics(selectedTracks);
+  5. ProfilePage.tsx:100      - const [savedTopics, setSavedTopics] = useState(() => StorageService.loadTopics());
+  6. ProfilePage.tsx:117      - setSavedTopics(StorageService.loadTopics());
+  7. VibesListPage.tsx:95     - const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  8. VibeProfilePage.tsx:99   - const savedTopics = useMemo(() => StorageService.loadTopics(), []);
+  9. Test expects these methods (test/storageService.test.ts:45,51,53)
+
+RUNTIME ERROR TRACE:
+  User opens HomePage → useVibeMatches needs savedTopics
+  → StorageService.loadTopics() called
+  → TypeError: StorageService.loadTopics is not a function
+  → App crashes
+
+EXPECTED STORAGE KEY:
+  Should use STORAGE_KEYS entry like: TOPICS: "ethcc-topics"
+  Currently not defined in constants.ts
+
+================================================================================
+2. HIGH: Undefined STORAGE_KEYS Entry
+================================================================================
+
+ISSUE: STORAGE_KEYS.PENDING_TOPICS used but not defined
+SEVERITY: HIGH - Silent data corruption
+
+EVIDENCE:
+  File: /web/src/config/constants.ts
+  Lines 2-18 define STORAGE_KEYS object
+  Entry PENDING_TOPICS is MISSING
+
+USAGE:
+  /web/src/pages/VibeProfilePage.tsx:115
+    try { const raw = localStorage.getItem(STORAGE_KEYS.PENDING_TOPICS); ... }
+  
+  /web/src/pages/VibeProfilePage.tsx:123
+    localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
+
+RUNTIME BEHAVIOR:
+  When undefined is passed to localStorage.getItem(undefined):
+  - Returns null
+  - silently fails
+  - Interest additions from vibe profiles are never persisted
+  - User data loss (silent, not obvious)
+
+EXPECTED DEFINITION:
+  Add to STORAGE_KEYS object:
+  PENDING_TOPICS: "ethcc-pending-topics"
+
+================================================================================
+3. HIGH: Interest Storage Fragmentation
+================================================================================
+
+ISSUE: Three different systems storing interests - causes data inconsistency
+SEVERITY: HIGH - Data corruption and inconsistent behavior
+
+CURRENT STATE (3 INCOMPATIBLE SYSTEMS):
+
+SYSTEM 1: Cart-based (useCart.ts)
+  Format: "interest:{trackName}"
+  Location: Cart Set stored in STORAGE_KEYS.CART
+  Usage: Auto-added when session added, auto-removed when last session removed
+  Code reference: /web/src/hooks/useCart.ts:61
+    next.add(`interest:${track}`);
+
+SYSTEM 2: OnboardingPage topics (non-functional)
+  Format: Plain track name (just "DeFi", not "interest:DeFi")
+  Location: StorageService.saveTopics() call (METHOD DOESN'T EXIST)
+  Usage: Trying to save selected interests during onboarding
+  Code reference: /web/src/pages/OnboardingPage.tsx:74
+    StorageService.saveTopics(selectedTracks);
+  Problem: Method doesn't exist, so this fails silently
+
+SYSTEM 3: VibeProfilePage pending topics (orphaned)
+  Format: Plain track name stored in PENDING_TOPICS key
+  Location: Separate localStorage key (PENDING_TOPICS)
+  Usage: Stores interests added from vibe profile modal
+  Code reference: /web/src/pages/VibeProfilePage.tsx:115-123
+    localStorage.setItem(STORAGE_KEYS.PENDING_TOPICS, JSON.stringify([...next]));
+  Problem: Key not defined, never gets added to cart as "interest:"
+
+CART DERIVATION LOGIC:
+  /web/src/pages/CartPage.tsx:256-273
+  Looks for interests prefixed with "interest:" in cart
+  But SYSTEM 2 & 3 don't use this format!
+
+EXAMPLE DATA CORRUPTION:
+  User onboards → selects "DeFi" interest
+  → OnboardingPage calls StorageService.saveTopics() → FAILS (method missing)
+  → Interest never saved
+
+  User views vibe profile → adds "DeFi" interest from modal
+  → Stored in PENDING_TOPICS → Key undefined → silent failure
+  → Interest not added to cart
+  → Not published to on-chain
+
+  Even if both worked:
+  - System 1 format: "interest:DeFi"
+  - Systems 2&3 format: "DeFi"
+  - CartPage derivation expects System 1 format only
+  - Data format mismatch causes interests to be ignored
+
+================================================================================
+4. HIGH: Profile Sync Breaks Interest Persistence
+================================================================================
+
+ISSUE: Interests synced from chain but deliberately not persisted
+SEVERITY: HIGH - Design change breaks other code
+
+EVIDENCE:
+  File: /web/src/services/profileSync.ts:92-93
+  Comment: "Note: Interests are no longer persisted to localStorage"
+  Code: Function returns interests but doesn't save them
+  
+  /web/src/services/profileSync.ts:46-120
+  Function syncProfileFromChain() returns:
+    { interests: [...], sessions: [...], votes: [...] }
+  But only persists sessions and votes:
+    Lines 103: localStorage.setItem(STORAGE_KEYS.PUBLISHED_SESSIONS, ...)
+    Lines 113: localStorage.setItem(STORAGE_KEYS.PUBLISHED_VOTES, ...)
+  Interest result is discarded - never persisted!
+
+CONTRADICTORY CODE:
+  /web/src/pages/ProfilePage.tsx:116-117
+  await syncProfileFromChain(walletAddress)
+  setSavedTopics(StorageService.loadTopics());
+  
+  Logic: After sync, reload interests from storage
+  Reality: Sync doesn't save them, loadTopics() doesn't exist
+  Result: Profile shows 0 interests even after sync
+
+DOCUMENTED DESIGN INTENT:
+  Comment says "interests are derived from sessions in cart or synced from on-chain"
+  But code doesn't match this design:
+  - Not derived from sessions (no logic for this)
+  - Synced from chain but not persisted (data lost)
+
+================================================================================
+5. MEDIUM: Session Locking Logic Inconsistency
+================================================================================
+
+ISSUE: Locked session logic partially removed but still exists in code
+SEVERITY: MEDIUM - Design inconsistency but functionally works
+
+STATUS: Sessions are NOT locked in AgendaPage, but locking logic remains elsewhere
+
+AGENDAPAGE (NO LOCKING):
+  File: /web/src/pages/AgendaPage.tsx:240-242
+  Code:
+    const isPublished = publishedSessions.includes(s.id);
+    const inCart = cart.has(s.id);
+    const cartState = isPublished ? "published" : inCart ? "incart" : "default";
+  
+  Result: SessionCard always rendered without locked prop
+  Effect: All sessions accessible
+
+VIBEPROFILEPAGE (STILL HAS LOCKING):
+  File: /web/src/pages/VibeProfilePage.tsx:113,307,310,312
+  Code:
+    const [lockedTrack, setLockedTrack] = useState<string | null>(null);
+    onClick={() => hasTrack ? navigate(...) : setLockedTrack(sess.track)}
+    {!hasTrack && <span style={lockIcon}>🔒</span>}
+  
+  Result: Sessions shown as "locked" if user doesn't have track interest
+  Effect: User must add interest to see session details
+
+SESSIONCARD COMPONENT (UNUSED LOCKED PROP):
+  File: /web/src/components/session/SessionCard.tsx:10,14,18-34
+  Code: Optional locked prop accepted but only AgendaPage uses SessionCard
+  Problem: Only VibeProfilePage has locking logic (separate implementation)
+  Result: SessionCard locked rendering never used
+
+INCONSISTENCY:
+  - AgendaPage: All sessions unlocked
+  - VibeProfilePage: Sessions locked based on track interest
+  - SessionCard: Has locked rendering but never used by AgendaPage
+  - Design scattered across multiple files
+
+FUNCTIONAL IMPACT:
+  Still works because:
+  - AgendaPage doesn't use locking (all sessions visible)
+  - VibeProfilePage has its own locking (based on interests)
+  - Interests auto-added to cart from sessions anyway
+  But design is confusing and inconsistent
+
+================================================================================
+6. MEDIUM: Onboarding Persistence Broken
+================================================================================
+
+ISSUE: Interest persistence calls don't work during onboarding
+SEVERITY: MEDIUM - User interests lost on refresh
+
+ONBOARDING SKIP CHECK:
+  File: /web/src/pages/OnboardingPage.tsx:23-27
+  Code:
+    const hasOnboarded = !!import.meta.env.VITE_DEV_WALLET
+      || localStorage.getItem(STORAGE_KEYS.ONBOARDED) === "1"
+      || StorageService.loadTopics().size > 0;
+    if (hasOnboarded) navigate("/home", { replace: true });
+  
+  Problem: Third condition calls non-existent method
+  Effect: Can't detect if user already selected interests
+  Result: Onboarding can't skip based on prior selections
+
+INTEREST SAVING (ATTEMPT 1):
+  File: /web/src/pages/OnboardingPage.tsx:74
+  Code: StorageService.saveTopics(selectedTracks);
+  Problem: Method doesn't exist
+  Effect: Silently fails
+  Result: Selected interests not persisted
+
+INTEREST SAVING (ATTEMPT 2):
+  File: /web/src/pages/OnboardingPage.tsx:127
+  Code: StorageService.saveTopics(selectedTracks);
+  Context: Skip button without full publish
+  Problem: Same - method doesn't exist
+  Effect: Interests lost if user skips publishing
+  Result: Data loss for users who don't publish
+
+WHAT ACTUALLY PERSISTS:
+  /web/src/pages/OnboardingPage.tsx:76
+  localStorage.setItem(STORAGE_KEYS.ONBOARDED, "1");
+  Only the "onboarded" flag, not the actual interests
+
+================================================================================
+7. CART PUBLISH - INTERESTS NOT CORRECTLY PUBLISHED
+================================================================================
+
+ISSUE: Cart publish logic expects interests in cart but they may not be there
+SEVERITY: MEDIUM - Some interests don't publish
+
+DERIVATION LOGIC:
+  File: /web/src/pages/CartPage.tsx:256-273
+  Code expects:
+    cart.forEach((id) => {
+      if (id.startsWith("interest:")) {
+        const track = id.slice(9);
+  
+  Only processes items prefixed with "interest:"
+
+PROBLEM:
+  OnboardingPage interests: Never saved (StorageService.saveTopics missing)
+  VibeProfilePage interests: Stored in PENDING_TOPICS, not cart
+  Neither pathway puts interests into cart as "interest:{track}"
+
+RESULT:
+  Derivation finds no "interest:" prefixed items
+  Only auto-derived interests from sessions get published
+  Explicit track selections from onboarding/vibe profiles are lost
+
+PUBLISH LOGIC:
+  File: /web/src/pages/CartPage.tsx:417-422
+  Code:
+    const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
+    if (trackAtomIds.length > 0) {
+      setPublishStatus(...);
+      await depositOnAtoms(wallet, trackAtomIds);
+  
+  If topicList is empty (no interests derived):
+  No deposits made on track atoms
+  User's interests not recorded on-chain
+
+================================================================================
+FLOW VERIFICATION RESULTS
+================================================================================
+
+FLOW 1: CART FLOW (AgendaPage → useCart → CartPage → publish)
+Status: PARTIALLY BROKEN
+Details:
+  ✓ WORKS: Sessions auto-add interests (useCart.ts:59-62)
+  ✓ WORKS: useCart auto-removes interests when last session removed
+  ✓ WORKS: Interests derived in CartPage from cart items
+  ✓ WORKS: Interest removal when sessions removed
+  ✗ BROKEN: VibeProfilePage interests not in cart format
+  ✗ BROKEN: StorageService methods missing
+  ✗ BROKEN: PENDING_TOPICS key undefined
+  ✗ BROKEN: Only auto-derived interests from sessions publish reliably
+
+FLOW 2: ONBOARDING FLOW (OnboardingPage → useOnboardingPublish)
+Status: BROKEN
+Details:
+  ✗ BROKEN: Interest selection storage (saveTopics doesn't exist)
+  ✗ BROKEN: Skip onboarding check (loadTopics doesn't exist)
+  ✓ WORKS: Session selection (selectedSessions state)
+  ✓ WORKS: On-chain publishing (interests auto-added in handlePublish)
+  ✓ WORKS: Session persistence to PUBLISHED_SESSIONS
+  ✗ BROKEN: Selected interests from step 4 not persisted if onboarding skipped
+
+FLOW 3: PROFILE SYNC (profileSync.ts)
+Status: BROKEN
+Details:
+  ✗ BROKEN: Interests synced from chain but not persisted
+  ✓ WORKS: Sessions synced and persisted to PUBLISHED_SESSIONS
+  ✓ WORKS: Votes synced and persisted to PUBLISHED_VOTES
+  ✗ BROKEN: ProfilePage expects interests in storage after sync
+  ✗ BROKEN: User profile shows 0 interests even after chain sync
+
+FLOW 4: SESSION ACCESS (All pages)
+Status: MOSTLY WORKS (scattered logic)
+Details:
+  ✓ WORKS: AgendaPage - all sessions unlocked
+  ✓ WORKS: HomePage - all sessions unlocked
+  ✓ WORKS: VibeProfilePage - sessions shown but locked if no interest
+  ⚠ MESSY: Locking logic in 2 different places (VibeProfilePage and SessionCard)
+  ✓ WORKS: Sessions can always be added to cart (no true lock)
+
+FLOW 5: DATA CONSISTENCY (Cart format)
+Status: INCONSISTENT
+Details:
+  ✓ Session items: "session-id" format - CORRECT
+  ✗ Track interests (onboarding): Never persisted - MISSING
+  ✗ Track interests (vibe profile): "track-name" format - WRONG (should be "interest:track-name")
+  ✓ Track interests (auto-derived): "interest:track-name" - CORRECT
+  ✓ Follow items: "follow:0x..." - CORRECT
+  ✓ Topic items: "topic-id" - CORRECT
+  ⚠ Rating items: Stored separately in RATINGS_PENDING - OK
+
+================================================================================
+ROOT CAUSE ANALYSIS
+================================================================================
+
+1. INCOMPLETE REFACTORING
+   - Methods called before implementation complete
+   - StorageService.loadTopics/saveTopics called but never added
+   - STORAGE_KEYS.PENDING_TOPICS referenced but never defined
+
+2. DESIGN FRAGMENTATION
+   - Interest storage split into 3 incompatible systems
+   - useCart auto-adds "interest:" prefixed items
+   - OnboardingPage tries to use StorageService (doesn't work)
+   - VibeProfilePage uses separate PENDING_TOPICS storage
+   - No unified interest persistence strategy
+
+3. BREAKING CHANGE NOT PROPAGATED
+   - profileSync deliberately changed to not persist interests
+   - Comment added explaining decision
+   - But callers not updated
+   - ProfilePage still expects interests in storage after sync
+
+4. CODE PATH DIVERGENCE
+   - Different interest sources use different formats
+   - Cart derivation expects one format only
+   - Other sources don't provide that format
+   - Data loss due to format mismatch
+
+5. SCATTERED LOCK LOGIC
+   - SessionCard has locked rendering
+   - AgendaPage doesn't use it
+   - VibeProfilePage has separate implementation
+   - No clear deprecation or consolidation
+
+================================================================================
+IMPACT SEVERITY MATRIX
+================================================================================
+
+Component         | Broken | Severity | User Impact
+------------------+--------+----------+-------------------------------------------
+HomePage          | YES    | CRITICAL | Crash on load (TypeError loadTopics)
+OnboardingPage    | YES    | CRITICAL | Crash on load (TypeError loadTopics)
+ProfilePage       | YES    | CRITICAL | Crash after sync (TypeError loadTopics)
+VibesListPage     | YES    | CRITICAL | Crash on load (TypeError loadTopics)
+VibeProfilePage   | YES    | CRITICAL | Can't add interests (undefined key)
+CartPage          | PARTIAL| MEDIUM   | Interests don't show/publish
+AgendaPage        | NO     | -        | Works fine
+Sessions publish  | PARTIAL| MEDIUM   | Some interests omitted
+Interest sync     | YES    | HIGH     | Chain data lost
+
+================================================================================
+REQUIRED FIXES (PRIORITY ORDER)
+================================================================================
+
+IMMEDIATE (App crashes without these):
+  1. Implement StorageService.loadTopics() and saveTopics() with CART-based storage
+     - Store interests as separate Set using new STORAGE_KEYS.TOPICS entry
+     - Or integrate into cart as "interest:" prefixed items
+
+  2. Add PENDING_TOPICS to STORAGE_KEYS
+     - Define: PENDING_TOPICS: "ethcc-pending-topics"
+     - OR consolidate with unified interest storage
+
+HIGH (Data corruption without these):
+  3. Update profileSync.ts to persist interests
+     - Save synced interests to StorageService.saveTopics()
+     - OR persist as "interest:" items in cart
+
+  4. Consolidate interest storage
+     - Remove PENDING_TOPICS approach
+     - Make everything use cart-based "interest:" format
+     - OR create unified StorageService.Topics storage
+
+MEDIUM (Design/consistency):
+  5. Remove unused locked prop from SessionCard
+     - OR implement locking consistently across all pages
+     - Document the locking strategy
+
+  6. Document interest persistence strategy
+     - Clarify: Are interests stored in cart or separate?
+     - Are they auto-derived or explicitly managed?
+     - How does profile sync feed into user interests?
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+OPTION A: Cart-based unified storage (PREFERRED)
+  - Make StorageService.loadTopics/saveTopics work with cart
+  - Store interests as Set<"interest:{trackName}">
+  - profileSync adds interests to cart as "interest:" items
+  - VibeProfilePage adds to cart directly (already does this)
+  - OnboardingPage adds to cart (during interests step)
+  - Single source of truth: cart
+  - Pros: Minimal changes, leverages existing cart infrastructure
+  - Cons: Cart becomes overloaded with multiple types
+
+OPTION B: Separate topics storage (CLEANER)
+  - Implement StorageService.loadTopics/saveTopics properly
+  - Use new STORAGE_KEYS.TOPICS entry
+  - Keep interests separate from cart items
+  - profileSync persists interests to this storage
+  - VibeProfilePage adds to both cart AND topics storage
+  - OnboardingPage adds to both cart AND topics storage
+  - Pros: Clean separation of concerns
+  - Cons: More storage, duplication between cart and topics
+
+OPTION C: Hybrid approach
+  - Keep cart-based auto-derived interests from sessions
+  - Use StorageService for explicitly selected interests (onboarding, vibe profile)
+  - During publish, merge both sources
+  - profileSync restores to StorageService
+  - Pros: Preserves intent (auto vs explicit)
+  - Cons: Most complex, requires change in publish logic
+
+RECOMMENDATION: Implement OPTION A first
+  - Quick fix to restore functionality
+  - Leverages existing cart infrastructure
+  - Test passes without new storage types
+  - profileSync change minimal
+
+================================================================================
+CODE REFERENCES SUMMARY
+================================================================================
+
+Critical Files:
+  /web/src/services/StorageService.ts (25 lines) - Missing methods
+  /web/src/config/constants.ts (72 lines) - Missing PENDING_TOPICS key
+  /web/src/services/profileSync.ts (120 lines) - Doesn't persist interests
+  /web/src/hooks/useCart.ts (99 lines) - Auto-adds "interest:" correctly
+  /web/src/pages/CartPage.tsx (857 lines) - Derives interests from cart
+
+Affected Pages:
+  /web/src/pages/HomePage.tsx:504 - loadTopics crash
+  /web/src/pages/OnboardingPage.tsx:26,74,127 - saveTopics/loadTopics crash
+  /web/src/pages/ProfilePage.tsx:100,117 - loadTopics crash
+  /web/src/pages/VibesListPage.tsx:95 - loadTopics crash
+  /web/src/pages/VibeProfilePage.tsx:99,115,123 - PENDING_TOPICS undefined
+
+Unused Code:
+  /web/src/components/session/SessionCard.tsx:10-34 - locked prop never used
+
+================================================================================
+END OF ANALYSIS
+================================================================================

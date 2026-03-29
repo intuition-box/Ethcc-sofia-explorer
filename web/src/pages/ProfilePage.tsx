@@ -12,6 +12,7 @@ import { hasEmbeddedWallet, getEmbeddedAddress } from "../services/embeddedWalle
 import { syncProfileFromChain } from "../services/profileSync";
 import { fetchUserNickname } from "../services/intuition";
 import { useFollow } from "../hooks/useFollow";
+import { followNotificationService } from "../services/followNotificationService";
 import {
   scrollContent, fluidContent, cardTitle, metaText, inCartBadge, glassInfoCard,
   listColumn, glassListItem, trackBadge, avatarSmall, monoText,
@@ -25,8 +26,8 @@ const page: CSSProperties = {
   background: "transparent", color: C.textPrimary, fontFamily: FONT, overflow: "hidden",
 };
 const settingsBtn: CSSProperties = {
-  width: 42, height: 42, borderRadius: 14, background: C.surfaceGray,
-  border: "none", color: C.textSecondary, fontSize: 18,
+  width: 36, height: 36, borderRadius: 12, background: C.surfaceGray,
+  border: "none", color: C.textSecondary, fontSize: 16,
   cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
 };
 const inviteBtn: CSSProperties = {
@@ -62,9 +63,19 @@ const heroBackground: CSSProperties = {
 const heroSection: CSSProperties = {
   background: "transparent", borderRadius: `0 0 ${R.xl}px ${R.xl}px`,
   padding: "0 0 24px", color: "#0a0a0a", overflow: "hidden", boxSizing: "border-box",
+  position: "relative",
 };
 const heroHeader: CSSProperties = {
-  display: "flex", alignItems: "flex-start", justifyContent: "space-between", padding: "12px 20px 0",
+  padding: "12px 20px 0",
+  paddingRight: "90px", // Make space for buttons
+};
+const heroButtons: CSSProperties = {
+  position: "absolute",
+  top: 12,
+  right: 20,
+  display: "flex",
+  gap: 6,
+  zIndex: 1,
 };
 const heroSubAddr: CSSProperties = {
   fontSize: 12, color: "rgba(0,0,0,0.5)", fontFamily: "monospace", marginTop: 4,
@@ -88,6 +99,15 @@ const ensFooter: CSSProperties = {
 };
 const topicsWrap: CSSProperties = { display: "flex", flexWrap: "wrap", gap: 8, padding: "0 16px" };
 const sessionIcon: CSSProperties = { fontSize: 16, flexShrink: 0 };
+const notifBtn: CSSProperties = {
+  width: 36, height: 36, borderRadius: 12, background: "rgba(0,0,0,0.1)",
+  border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+  position: "relative", flexShrink: 0,
+};
+const notifBadge: CSSProperties = {
+  position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%",
+  background: C.error, border: "2px solid #fff",
+};
 
 // ─── Component ───────────────────────────────────────
 
@@ -97,7 +117,8 @@ export default function ProfilePage() {
   const walletAddress = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS) ?? "";
   const [nickname, setNickname] = useState(() => localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? "");
   const { following } = useFollow();
-  const [savedTopics, setSavedTopics] = useState(() => StorageService.loadTopics());
+  const [savedTopics, setSavedTopics] = useState<Set<string>>(new Set());
+  const [unseenFollowerCount, setUnseenFollowerCount] = useState(0);
   const topicNames = useMemo(() => [...savedTopics], [savedTopics]);
   const [publishedSessionIds, setPublishedSessionIds] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"); }
@@ -113,13 +134,18 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!walletAddress) return;
-    syncProfileFromChain(walletAddress).then(() => {
-      setSavedTopics(StorageService.loadTopics());
+    syncProfileFromChain(walletAddress).then((result) => {
+      setSavedTopics(new Set(result.interests));
       try {
         setPublishedSessionIds(JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]"));
         const v = localStorage.getItem(STORAGE_KEYS.PUBLISHED_VOTES);
         setVoteCount(v ? (JSON.parse(v) as unknown[]).length : 0);
       } catch { /* ignore */ }
+
+      // Load unseen follower count (use wallet address as atom ID)
+      followNotificationService.getUnseenFollowerCount(walletAddress).then((count) => {
+        setUnseenFollowerCount(count);
+      }).catch(() => {});
     }).catch(() => {});
     // Sync nickname from chain if not in localStorage
     if (!nickname) {
@@ -163,18 +189,24 @@ export default function ProfilePage() {
 
       <div style={scrollContent}>
       <div style={heroSection}>
-        <div style={heroHeader}>
-          <div>
-            <div style={{ fontSize: nickname ? 42 : 60, fontWeight: 900, lineHeight: 1 }}>
-              {nickname || (walletAddress ? <>{walletAddress.slice(0, 6)}...<br/>{walletAddress.slice(-4)}</> : "Profile")}
-            </div>
-            {nickname && walletAddress && (
-              <div style={heroSubAddr}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
-            )}
-          </div>
-          <button style={{ ...settingsBtn, background: "rgba(0,0,0,0.1)", flexShrink: 0, marginTop: 4 }} onClick={() => navigate("/settings")}>
-            <Ic.Settings s={18} c="#0a0a0a" />
+        {/* Buttons positioned absolutely in top right */}
+        <div style={heroButtons}>
+          <button style={notifBtn} onClick={() => navigate("/notifications")}>
+            <Ic.Bell s={16} c="#0a0a0a" />
+            {unseenFollowerCount > 0 && <div style={notifBadge} />}
           </button>
+          <button style={{ ...settingsBtn, background: "rgba(0,0,0,0.1)", flexShrink: 0 }} onClick={() => navigate("/settings")}>
+            <Ic.Settings s={16} c="#0a0a0a" />
+          </button>
+        </div>
+
+        <div style={heroHeader}>
+          <div style={{ fontSize: nickname ? 32 : 42, fontWeight: 900, lineHeight: 1.1, wordBreak: "break-all" }}>
+            {nickname || (walletAddress ? <>{walletAddress.slice(0, 6)}...<br/>{walletAddress.slice(-4)}</> : "Profile")}
+          </div>
+          {nickname && walletAddress && (
+            <div style={heroSubAddr}>{walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}</div>
+          )}
         </div>
         <div style={heroStatsRow}>
           <div style={heroStatCell}><div style={heroStatValue}>{topicNames.length || "-"}</div><div style={heroStatLabel}>Interests</div></div>
