@@ -553,10 +553,13 @@ export async function depositOnAtoms(
 
   // Step 2: Approve proxy on MultiVault (required before any proxy operation)
   onStep?.("Approving proxy...");
+  console.log('[depositOnAtoms] Starting proxy approval...');
   try {
     await approveProxy(wallet.multiVault);
+    console.log('[depositOnAtoms] Proxy approval successful');
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.log('[depositOnAtoms] Proxy approval error:', msg);
     // Only ignore if already approved - re-throw user rejections
     if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
       throw new Error('You must approve the proxy to continue. Please accept the approval request in your wallet.');
@@ -566,11 +569,14 @@ export async function depositOnAtoms(
       console.warn('[Intuition] Proxy approval warning:', msg);
     }
   }
+  console.log('[depositOnAtoms] Proceeding to batch processing...');
 
   let lastHash = "";
   let lastBlockNumber = 0;
   const totalBatches = Math.ceil(termIds.length / DEPOSIT_BATCH_SIZE);
   let successfulBatches = 0;
+
+  console.log(`[depositOnAtoms] Processing ${termIds.length} terms in ${totalBatches} batch(es)`);
 
   for (let i = 0; i < termIds.length; i += DEPOSIT_BATCH_SIZE) {
     const batch = termIds.slice(i, i + DEPOSIT_BATCH_SIZE);
@@ -580,20 +586,26 @@ export async function depositOnAtoms(
 
     try {
       // Step 3: Calculate cost for this batch
-      if (totalBatches > 1) {
-        onStep?.(`Calculating cost for batch ${batchNum}/${totalBatches}...`);
-      }
+      console.log(`[depositOnAtoms] Batch ${batchNum}: Calculating cost...`);
+      onStep?.(totalBatches > 1
+        ? `Calculating cost for batch ${batchNum}/${totalBatches}...`
+        : "Calculating cost..."
+      );
       const costBreakdown = await FeeCalculationService.calculateDepositBatchCost(
         wallet,
         batch.length,
         deposit
       );
+      console.log(`[depositOnAtoms] Batch ${batchNum}: Cost calculated:`, costBreakdown.grandTotal.toString());
 
       // Step 4: Check balance before batch
-      if (totalBatches > 1) {
-        onStep?.(`Checking balance for batch ${batchNum}/${totalBatches}...`);
-      }
+      console.log(`[depositOnAtoms] Batch ${batchNum}: Checking balance...`);
+      onStep?.(totalBatches > 1
+        ? `Checking balance for batch ${batchNum}/${totalBatches}...`
+        : "Checking balance..."
+      );
       const balanceCheck = await SimulationService.checkBalance(wallet, costBreakdown.grandTotal);
+      console.log(`[depositOnAtoms] Batch ${batchNum}: Balance check:`, balanceCheck.hasEnough ? 'OK' : 'INSUFFICIENT');
 
       if (!balanceCheck.hasEnough) {
         const error = ErrorHandlingService.parseSimulationError(
@@ -607,9 +619,10 @@ export async function depositOnAtoms(
       }
 
       // Step 5: Simulate transaction before sending
-      if (totalBatches > 1) {
-        onStep?.(`Simulating batch ${batchNum}/${totalBatches}...`);
-      }
+      onStep?.(totalBatches > 1
+        ? `Simulating batch ${batchNum}/${totalBatches}...`
+        : "Simulating transaction..."
+      );
       const simulation = await SimulationService.simulateDepositBatch(
         wallet,
         batch,
