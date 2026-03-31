@@ -296,7 +296,10 @@ export default function SendPage() {
       try {
         const { ethers } = await import("ethers");
         const { CHAIN_CONFIG } = await import("../config/constants");
-        const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+          chainId: CHAIN_CONFIG.CHAIN_ID,
+          name: CHAIN_CONFIG.CHAIN_NAME,
+        });
         const bal = await provider.getBalance(walletAddr);
         const formatted = ethers.formatEther(bal);
 
