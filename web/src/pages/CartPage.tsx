@@ -250,6 +250,29 @@ export default function CartPage() {
   const [publishedTxHash, setPublishedTxHash] = useState("");
   const [userAtomId, setUserAtomId] = useState("");
 
+  // Auto-clean cart: remove already-published sessions
+  useEffect(() => {
+    const published: string[] = JSON.parse(localStorage.getItem(STORAGE_KEYS.PUBLISHED_SESSIONS) ?? "[]");
+    if (published.length === 0) return;
+
+    let needsCleanup = false;
+    for (const sessionId of published) {
+      if (cart.has(sessionId)) {
+        needsCleanup = true;
+        break;
+      }
+    }
+
+    if (needsCleanup) {
+      console.log('[CartPage] Cleaning already-published sessions from cart');
+      published.forEach((sessionId) => {
+        if (cart.has(sessionId)) {
+          toggleCart(sessionId); // Remove from cart
+        }
+      });
+    }
+  }, []); // Run once on mount
+
   // Category lookup
   const categoryMap = useMemo(() => {
     const m = new Map<string, { icon: string; color: string; name: string }>();
