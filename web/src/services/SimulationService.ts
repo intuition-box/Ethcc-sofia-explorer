@@ -234,10 +234,12 @@ export class SimulationService {
       return "ATOM_MISSING";
     }
 
+    // MultiVault_TripleExists error (selector: 0x22319959)
     if (
       lower.includes("triple exists") ||
       lower.includes("tripleexists") ||
-      lower.includes("multivault_tripleexists")
+      lower.includes("multivault_tripleexists") ||
+      lower.includes("0x22319959")
     ) {
       return "TRIPLE_EXISTS";
     }
