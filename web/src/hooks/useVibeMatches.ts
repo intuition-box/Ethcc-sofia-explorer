@@ -209,7 +209,14 @@ export function useVibeMatches(
             abortControllerRef.current = null;
           }
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.warn('[useVibeMatches] Fetch failed:', err);
+        // Stop loading even if fetch fails
+        if (mountedRef.current) {
+          setLoading(false);
+          abortControllerRef.current = null;
+        }
+      }
     }
 
     fetchMatches();
