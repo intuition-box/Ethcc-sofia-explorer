@@ -414,14 +414,30 @@ export async function createProfileTriples(
   onStep?.("Checking which triples already exist...");
   const triplesToCreate: IntuitionTriple[] = [];
 
+  // Create a read-only MultiVault contract with dedicated RPC provider
+  // to avoid provider errors when checking triple existence
+  const ethers = wallet.ethers;
+  const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+    chainId: CHAIN_CONFIG.CHAIN_ID,
+    name: CHAIN_CONFIG.CHAIN_NAME,
+  });
+  const multiVaultReadOnly = new ethers.Contract(
+    CHAIN_CONFIG.MULTIVAULT,
+    [
+      "function calculateTripleId(bytes32 subjectId, bytes32 predicateId, bytes32 objectId) pure returns (bytes32)",
+      "function isTermCreated(bytes32 termId) view returns (bool)"
+    ],
+    rpcProvider
+  );
+
   for (const triple of triples) {
     try {
-      const tripleId = await multiVault.calculateTripleId(
+      const tripleId = await multiVaultReadOnly.calculateTripleId(
         triple.subjectId,
         triple.predicateId,
         triple.objectId
       );
-      const exists = await multiVault.isTermCreated(tripleId);
+      const exists = await multiVaultReadOnly.isTermCreated(tripleId);
 
       if (!exists) {
         triplesToCreate.push(triple);
