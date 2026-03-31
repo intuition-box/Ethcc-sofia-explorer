@@ -344,7 +344,10 @@ export default function CartPage() {
     if (tripleCount === 0) { setCostBreakdown(null); return; }
     let cancelled = false;
     import("ethers").then(async ({ ethers }) => {
-      const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+        chainId: CHAIN_CONFIG.CHAIN_ID,
+        name: CHAIN_CONFIG.CHAIN_NAME,
+      });
       const proxy = new ethers.Contract(
         CHAIN_CONFIG.SOFIA_PROXY,
         [

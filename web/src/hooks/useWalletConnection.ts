@@ -104,7 +104,10 @@ export function useWalletConnection() {
 
         // Fetch balance in background (non-blocking) via RPC
         try {
-          const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+          const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+            chainId: CHAIN_CONFIG.CHAIN_ID,
+            name: CHAIN_CONFIG.CHAIN_NAME,
+          });
           const bal = await rpcProvider.getBalance(addr);
           setBalance(ethers.formatEther(bal));
         } catch { /* non-critical */ }
@@ -125,7 +128,10 @@ export function useWalletConnection() {
     const poll = async () => {
       try {
         const { ethers } = await import("ethers");
-        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+          chainId: CHAIN_CONFIG.CHAIN_ID,
+          name: CHAIN_CONFIG.CHAIN_NAME,
+        });
         const bal = await rpcProvider.getBalance(wallet.address);
         if (!cancelled) setBalance(ethers.formatEther(bal));
       } catch { /* ignore polling errors */ }

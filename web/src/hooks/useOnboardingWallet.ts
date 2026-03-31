@@ -54,7 +54,10 @@ export function useOnboardingWallet() {
     setBalanceRefreshing(true);
     try {
       const { ethers } = await import("ethers");
-      const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+        chainId: CHAIN_CONFIG.CHAIN_ID,
+        name: CHAIN_CONFIG.CHAIN_NAME,
+      });
       const bal = await rpcProvider.getBalance(embeddedWallet.address);
       setEmbeddedBalance(ethers.formatEther(bal));
     } catch { /* ignore */ }
@@ -70,7 +73,10 @@ export function useOnboardingWallet() {
       setBalanceRefreshing(true);
       try {
         const { ethers } = await import("ethers");
-        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+        const rpcProvider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+          chainId: CHAIN_CONFIG.CHAIN_ID,
+          name: CHAIN_CONFIG.CHAIN_NAME,
+        });
         const bal = await rpcProvider.getBalance(embeddedWallet.address);
         setEmbeddedBalance(ethers.formatEther(bal));
       } catch { /* ignore */ }

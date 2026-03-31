@@ -72,7 +72,10 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!walletAddress) return;
     import("ethers").then(({ ethers }) => {
-      const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+        chainId: CHAIN_CONFIG.CHAIN_ID,
+        name: CHAIN_CONFIG.CHAIN_NAME,
+      });
       provider.getBalance(walletAddress).then((bal) => {
         const trust = Number(bal) / 1e18;
         setBalance(trust < 0.001 ? trust.toFixed(6) : trust.toFixed(4));

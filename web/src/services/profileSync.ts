@@ -51,7 +51,10 @@ interface SyncResult {
 async function calculateUserAtomId(address: string): Promise<string> {
   try {
     const { ethers } = await import("ethers");
-    const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+    const provider = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+      chainId: CHAIN_CONFIG.CHAIN_ID,
+      name: CHAIN_CONFIG.CHAIN_NAME,
+    });
     const multiVault = new ethers.Contract(
       CHAIN_CONFIG.MULTIVAULT,
       ["function calculateAtomId(bytes data) pure returns (bytes32)"],

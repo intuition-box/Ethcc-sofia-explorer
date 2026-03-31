@@ -50,7 +50,10 @@ export function EmbeddedWalletProvider({ children }: { children: ReactNode }) {
     if (!addr) return;
     try {
       const { ethers } = await import("ethers");
-      const rpc = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL);
+      const rpc = new ethers.JsonRpcProvider(CHAIN_CONFIG.RPC_URL, {
+        chainId: CHAIN_CONFIG.CHAIN_ID,
+        name: CHAIN_CONFIG.CHAIN_NAME,
+      });
       const bal = await rpc.getBalance(addr);
       setBalance(ethers.formatEther(bal));
     } catch { /* ignore */ }
