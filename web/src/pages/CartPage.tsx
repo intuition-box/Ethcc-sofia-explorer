@@ -446,19 +446,41 @@ export default function CartPage() {
     setPublishing(true);
     let lastTxHash = "";
     try {
+      // 0. Approve proxy ONCE for all operations (before any transactions)
+      setPublishStatus("Approving proxy...");
+      const { approveProxy } = await import("../services/intuition");
+      try {
+        await approveProxy(wallet.multiVault, wallet);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+
+        // Check if network changed during approval
+        const { NetworkGuard } = await import('../services/NetworkGuard');
+        if (NetworkGuard.isNetworkChangeError(err)) {
+          throw err;
+        }
+
+        // Only re-throw if user explicitly rejected
+        if (msg.toLowerCase().includes('user rejected') || msg.toLowerCase().includes('user denied')) {
+          throw new Error('You must approve the proxy to continue. Please accept the approval request in your wallet.');
+        }
+        // Continue if already approved or other non-blocking errors
+        console.log('[CartPage] Proxy approval check completed (may already be approved)');
+      }
+
       // Get user atom ID (might already exist)
       setPublishStatus("Preparing your profile...");
       const nickname = localStorage.getItem(STORAGE_KEYS.NICKNAME) ?? undefined;
       const atomId = await ensureUserAtom(wallet.multiVault, wallet.proxy, wallet.address, wallet.ethers, nickname);
       setUserAtomId(atomId);
 
-      // 1. Deposit on track atoms (interests)
+      // 1. Deposit on track atoms (interests) - SKIP approval (already done above)
       const trackAtomIds = topicList.map((t) => TRACK_ATOM_IDS[t]).filter(Boolean);
       if (trackAtomIds.length > 0) {
         setPublishStatus(`Depositing on ${trackAtomIds.length} interests...`);
         const result = await depositOnAtoms(wallet, trackAtomIds, undefined, (step) => {
           setPublishStatus(step);
-        });
+        }, true); // skipApproval=true
         if (typeof result === 'string') {
           lastTxHash = result;
         } else if (result && 'hash' in result) {
@@ -466,14 +488,14 @@ export default function CartPage() {
         }
       }
 
-      // 2. Deposit on topic atoms (votes)
+      // 2. Deposit on topic atoms (votes) - SKIP approval (already done above)
       if (cartTopics.length > 0) {
         const { resolved } = resolveTopicAtomIds(cartTopics.map((t) => t.id));
         if (resolved.length > 0) {
           setPublishStatus(`Depositing on ${resolved.length} topics...`);
           const result = await depositOnAtoms(wallet, resolved.map((r) => r.atomId), undefined, (step) => {
             setPublishStatus(step);
-          });
+          }, true); // skipApproval=true
           if (typeof result === 'string') {
             lastTxHash = result;
           } else if (result && 'hash' in result) {
